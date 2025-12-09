@@ -63,7 +63,7 @@ def main():
             all_data += f.result()
 
     print(f"\n✔ Scan complete — total resources: {len(all_data)}")
-    write_output(all_data, "upwind_org_report.json", "upwind_org_report.csv")
+    write_output(all_data, "upwind_report.json", "upwind_report.csv")
     print("\n📄 Reports saved → upwind_org_report.json / upwind_org_report.csv")
 
 
