@@ -15,4 +15,6 @@ def collect_ebs_volumes():
             "region": ec2.meta.region_name,
         })
 
+    print(volumes)
+
     return volumes
