@@ -1,34 +1,29 @@
+import json
 import csv
 import os
-import json
-
-OUTPUT_DIR = "output"
-CSV_FILE = f"{OUTPUT_DIR}/report.csv"
-
 
 def write_output(data, csv_name="report.csv"):
-    """Writes data to CSV and JSON for inspection."""
+    os.makedirs("output", exist_ok=True)
 
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    # Save JSON (raw)
+    with open("output/report.json", "w") as f:
+        json.dump(data, f, indent=2)
+    print("JSON saved → output/report.json")
 
-    # JSON (debug/reference)
-    json_path = os.path.join(OUTPUT_DIR, "report.json")
-    with open(json_path, "w") as jf:
-        json.dump(data, jf, indent=4)
-    print(f"JSON saved → {json_path}")
+    # -------- CSV FIX HERE --------
+    # Collect all keys across all records
+    fieldnames = set()
+    for item in data:
+        fieldnames.update(item.keys())
 
-    # Validate CSV data
-    if not isinstance(data, list) or len(data) == 0:
-        print("No data to write to CSV")
-        return
+    fieldnames = sorted(fieldnames)   # nice consistent order
 
-    # Extract header dynamically
-    headers = sorted(list(data[0].keys()))
-
-    csv_path = os.path.join(OUTPUT_DIR, csv_name)
-    with open(csv_path, "w", newline="") as cf:
-        writer = csv.DictWriter(cf, fieldnames=headers)
+    # Write CSV with dynamic columns
+    csv_path = f"output/{csv_name}"
+    with open(csv_path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
-        writer.writerows(data)
+        for row in data:
+            writer.writerow(row)
 
     print(f"CSV saved → {csv_path}")
