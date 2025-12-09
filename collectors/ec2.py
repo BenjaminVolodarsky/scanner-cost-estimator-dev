@@ -27,11 +27,9 @@ def collect_ec2_instances(session, region, args=None):
                         "resource": "ec2",
                         "region": region,
                         "type": inst.get("InstanceType"),
-                        "lifecycle": inst.get("InstanceLifecycle", "on-demand"),
-                        "instance_id": inst.get("InstanceId"),
-                        "state": state,
-                        "tags": tags
+                        "lifecycle": inst.get("InstanceLifecycle", "on-demand")
                     })
+
 
     except Exception as e:
         print(f"⚠️ EC2 scan failed in {region} → {e}")
