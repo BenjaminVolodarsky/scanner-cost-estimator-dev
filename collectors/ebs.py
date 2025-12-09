@@ -1,7 +1,7 @@
 import boto3
 from utils.safe_call import safe_aws_call
 
-def collect_ebs_volumes(session, region):
+def collect_ebs_volumes(session, region, args=None):
     ec2 = session.client("ec2", region_name=region)
 
     resp = safe_aws_call(lambda: ec2.describe_volumes(), region)

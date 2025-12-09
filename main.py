@@ -35,7 +35,6 @@ def scan_region(region, args):
         return (
                 collect_ec2_instances(session, region, args) +
                 collect_ebs_volumes(session, region, args) +
-                collect_s3_buckets(session, region, args) +
                 collect_auto_scaling_groups(session, region, args) +
                 collect_lambda_functions(session, region, args)
         )
@@ -64,6 +63,9 @@ def main():
         futures = [executor.submit(scan_region, r, args) for r in regions]
         for f in as_completed(futures):
             results += f.result()
+
+    print("\n📦 Collecting S3 buckets global...")
+    results += collect_s3_buckets(boto3.Session(), None, args)
 
     print(f"\n✔ Scan complete — resources collected: {len(results)}")
 

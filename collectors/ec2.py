@@ -1,11 +1,11 @@
 import boto3
 
-def collect_ec2_instances(session, region, args):
-    client = session.client("ec2", region_name=region)
+def collect_ec2_instances(session, region, args=None):
+    ec2 = session.client("ec2", region_name=region)
     result = []
 
     try:
-        paginator = client.get_paginator("describe_instances")
+        paginator = ec2.get_paginator("describe_instances")
         for page in paginator.paginate():
             for reservation in page.get("Reservations", []):
                 for inst in reservation.get("Instances", []):

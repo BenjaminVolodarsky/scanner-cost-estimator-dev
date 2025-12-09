@@ -3,51 +3,45 @@
 import boto3
 from datetime import datetime, timedelta
 
-def collect_s3_buckets(session, region=None):
-    """List buckets + retrieve size via CloudWatch metrics."""
+def collect_s3_buckets(session, region=None, args=None):
+    """S3 buckets are GLOBAL — only run once on first call"""
 
     s3 = session.client("s3")
     cw = session.client("cloudwatch")
 
-    results = []
-
     try:
         buckets = s3.list_buckets()["Buckets"]
     except Exception as e:
-        print(f"   ⚠️ S3 access denied in {region} → {e}")
+        print(f"   ⚠️ S3 access denied → {e}")
         return []
+
+    results = []
 
     for bucket in buckets:
         name = bucket["Name"]
         creation = bucket["CreationDate"].isoformat()
 
-        # Get bucket location (required for region mapping)
+        # bucket region lookup
         try:
             loc = s3.get_bucket_location(Bucket=name)["LocationConstraint"] or "us-east-1"
         except:
             loc = "unknown"
 
-        # Retrieve storage metrics
+        # fetch size (optional)
         try:
             metrics = cw.get_metric_statistics(
                 Namespace="AWS/S3",
                 MetricName="BucketSizeBytes",
-                Dimensions=[
-                    {"Name": "BucketName", "Value": name},
-                    {"Name": "StorageType", "Value": "StandardStorage"} # could add Glacier/Tiers later
-                ],
+                Dimensions=[{"Name": "BucketName", "Value": name},
+                            {"Name": "StorageType", "Value": "StandardStorage"}],
                 StartTime=datetime.utcnow() - timedelta(days=2),
                 EndTime=datetime.utcnow(),
                 Period=86400,
                 Statistics=["Average"]
             )
-
-            size_bytes = metrics["Datapoints"][0]["Average"] if metrics["Datapoints"] else 0
-            size_gb = round(size_bytes / 1024 / 1024 / 1024, 2)
-
-        except Exception as e:
-            size_gb = None
-            print(f"   ⚠️ Failed to fetch size for {name} → {e}")
+            size_gb = round(metrics["Datapoints"][0]["Average"] / 1024**3, 2) if metrics["Datapoints"] else 0.0
+        except:
+            size_gb = 0.0
 
         results.append({
             "resource": "s3_bucket",

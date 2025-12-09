@@ -16,7 +16,7 @@ def is_kubernetes_asg(tags: dict) -> bool:
     return False
 
 
-def collect_auto_scaling_groups(session, region, args):
+def collect_auto_scaling_groups(session, region, args=None):
     client = session.client("autoscaling", region_name=region)
     results = []
 
