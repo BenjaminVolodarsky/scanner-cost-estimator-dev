@@ -7,7 +7,7 @@ def _spin():
     frames = ["|", "/", "-", "\\"]
     i = 0
     while _spinner_active:
-        sys.stdout.write(f"\r⏳ Scanning... {frames[i % len(frames)]}")
+        sys.stdout.write(f"\r Scanning {frames[i % len(frames)]}")
         sys.stdout.flush()
         i += 1
         time.sleep(0.12)
