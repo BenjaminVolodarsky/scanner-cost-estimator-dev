@@ -18,6 +18,6 @@ def collect_lambda_functions(session, region, args=None):
                 })
 
     except Exception as e:
-        print(f"   ⚠️ Lambda scan failed in {region} → {e}")
+        return []
 
     return results

@@ -11,6 +11,7 @@ from output.writer import write_output
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import argparse
 from collectors.asgConverter import collect_asg_as_ec2_equivalent
+from utils.spinner import start_spinner, stop_spinner
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Upwind CloudScanner Cost Estimator")
@@ -28,7 +29,6 @@ def parse_args():
 
 
 def scan_region(region, args):
-    print(f"🌍 Scanning region: {region}")
     session = boto3.Session(region_name=region)
 
     try:
@@ -40,18 +40,14 @@ def scan_region(region, args):
         )
 
     except Exception as e:
-        print(f"⚠️ Region failed {region} → {e}")
         return []
 
 
 
 def main():
-    print("\n🚀 Upwind CloudScanner Cost Estimator\n")
 
     sts = boto3.client("sts")
     identity = sts.get_caller_identity()
-    print(f"🏢 Account: {identity['Account']}\n")
-
     regions = list_regions()
     results = []
 
@@ -60,12 +56,14 @@ def main():
 
     results = []
 
+    spinner_thread = start_spinner()
     with ThreadPoolExecutor(max_workers=10) as executor:
         futures = [executor.submit(scan_region, r, args) for r in regions]
         for f in as_completed(futures):
             results += f.result()
 
-    print("\n📦 Collecting S3 buckets global...")
+    stop_spinner()
+
     results += collect_s3_buckets(boto3.Session(), None, args)
 
     print(f"\n✔ Scan complete — resources collected: {len(results)}")
@@ -74,11 +72,6 @@ def main():
                  json_filename="upwind_report.json",
                  csv_filename="upwind_report.csv"
                  )
-
-    print("\n📄 Output saved:")
-    print("   📁 upwind_report.json")
-    print("   📁 upwind_report.csv\n")
-
 
 if __name__ == "__main__":
     main()

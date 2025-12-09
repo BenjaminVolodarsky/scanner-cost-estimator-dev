@@ -13,5 +13,4 @@ def list_org_accounts():
                     "name": acc["Name"]
                 })
 
-    print(f"🔸 Found {len(accounts)} AWS accounts")
     return accounts

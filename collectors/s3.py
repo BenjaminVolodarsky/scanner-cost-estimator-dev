@@ -12,7 +12,6 @@ def collect_s3_buckets(session, region=None, args=None):
     try:
         buckets = s3.list_buckets()["Buckets"]
     except Exception as e:
-        print(f"   ⚠️ S3 access denied → {e}")
         return []
 
     results = []

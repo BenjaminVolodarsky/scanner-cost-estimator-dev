@@ -16,5 +16,4 @@ def assume_role(account_id, role="UpwindEstimator"):
         )
 
     except Exception as e:
-        print(f"❗ Cannot assume role in {account_id}: {e}")
         return None
