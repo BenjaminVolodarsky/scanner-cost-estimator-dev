@@ -19,16 +19,16 @@ def main():
 
     for region in regions:
         print(f"🌍 Scanning region: {region}")
-
         session = boto3.Session(region_name=region)
+
         all_data += collect_ec2_instances(session, region)
         all_data += collect_ebs_volumes(session, region)
-        all_data += collect_s3_buckets(session, region)
         all_data += collect_auto_scaling_groups(session, region)
 
+    # S3 is GLOBAL, do once — not per region
     print("\n📦 Collecting S3 Buckets globally...")
-    s3_data = collect_s3_buckets(session_global)
-    all_data += s3_data
+    session_global = boto3.Session(region_name="us-east-1")
+    all_data += collect_s3_buckets(session_global)
 
     print(f"\n✔ Done. Total collected items: {len(all_data)}")
     write_output(all_data,
