@@ -45,15 +45,14 @@ def scan_region(region, args):
 
 
 def main():
+    print("\n🚀 Upwind CloudScanner Cost Estimator\n")
 
     sts = boto3.client("sts")
     identity = sts.get_caller_identity()
-    regions = list_regions()
-    results = []
+    print(f"🏢 Account: {identity['Account']}")
 
-    # Scan all regions concurrently
     args = parse_args()
-
+    regions = list_regions()
     results = []
 
     start_spinner()
@@ -64,15 +63,11 @@ def main():
             results += f.result()
 
     stop_spinner()
-
-    results += collect_s3_buckets(boto3.Session(), None, args)
-
-    print(f"\n✔ Scan complete — resources collected: {len(results)}")
+    print(f"✔ Scan complete — resources collected: {len(results)}\n")
 
     write_output(results,
                  json_filename="upwind_report.json",
-                 csv_filename="upwind_report.csv"
-                 )
+                 csv_filename="upwind_report.csv")
 
 if __name__ == "__main__":
     main()
