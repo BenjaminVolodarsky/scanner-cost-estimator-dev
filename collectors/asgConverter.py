@@ -1,23 +1,34 @@
-# collectors/asgConverter.py
+import boto3
 
-from collectors.asg import collect_auto_scaling_groups
+# simple ASG → ec2-like lightweight output
 
 def collect_asg_as_ec2_equivalent(session, region, args=None):
-    groups = collect_auto_scaling_groups(session, region, args)
-    result = []
+    client = session.client("autoscaling", region_name=region)
+    results = []
 
-    for g in groups:
-        count = g.get("desired", 1)
+    try:
+        paginator = client.get_paginator("describe_auto_scaling_groups")
+        for page in paginator.paginate():
+            for asg in page.get("AutoScalingGroups", []):
 
-        # If include_asg_instances is OFF -> count ASG as 1 VM unit
-        vm_count = count if args.include_asg_instances else 1
+                tags = {t["Key"]: t["Value"] for t in asg.get("Tags", [])}
 
-        for _ in range(vm_count):
-            result.append({
-                "resource": "ec2",
-                "region": region,
-                "type": "asg",
-                "lifecycle": "unknown"
-            })
+                # Skip Kubernetes nodegroups unless user flag enables them
+                is_k8s = any(x in str(tags) for x in ["eks", "k8", "kubernetes"])
+                if is_k8s and not args.include_k8s_asg:
+                    continue
 
-    return result
+                # default count = 1 scanning unit per ASG
+                size = asg.get("DesiredCapacity", 1)
+
+                results.append({
+                    "resource": "ec2",       # customer sees it like scan unit
+                    "region": region,
+                    "type": "asg",
+                    "lifecycle": f"asg({size})"
+                })
+
+    except:
+        return []
+
+    return results

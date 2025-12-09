@@ -20,17 +20,25 @@ def parse_args():
     return parser.parse_args()
 
 
+
 def scan_region(region, args):
     session = boto3.Session(region_name=region)
-    try:
-        return (
-            collect_ec2_instances(session, region, args) +
-            collect_asg_as_ec2_equivalent(session, region, args) +
-            collect_ebs_volumes(session, region, args) +
-            collect_lambda_functions(session, region, args)
-        )
-    except:
-        return []
+    region_results = []
+
+    try: region_results += collect_ec2_instances(session, region, args)
+    except: pass
+
+    try: region_results += collect_asg_as_ec2_equivalent(session, region, args)
+    except: pass
+
+    try: region_results += collect_ebs_volumes(session, region, args)
+    except: pass
+
+    try: region_results += collect_lambda_functions(session, region, args)
+    except: pass
+
+    return region_results
+
 
 
 def main():
