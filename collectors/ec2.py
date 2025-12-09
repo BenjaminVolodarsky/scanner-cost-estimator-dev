@@ -32,9 +32,7 @@ def collect_ec2_instances(session, region, args=None):
 
 
     except Exception as e:
-        print(f"⚠️ EC2 scan failed in {region} → {e}")
+        return []
 
-    print(f"   ✔ EC2 in {region}: {len(result)} collected "
-          f"| 📴 skipped_stopped={stopped_skipped} | 🏷 skipped_asg_members={asg_members_skipped}")
 
     return result

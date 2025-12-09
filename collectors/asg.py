@@ -43,6 +43,6 @@ def collect_auto_scaling_groups(session, region, args=None):
                 })
 
     except Exception as e:
-        print(f"⚠️ ASG scan failed in {region} → {e}")
+        return []
 
     return results
