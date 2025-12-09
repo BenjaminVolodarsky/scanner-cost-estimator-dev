@@ -13,19 +13,15 @@ def collect_asg_as_ec2_equivalent(session, region, args=None):
 
                 tags = {t["Key"]: t["Value"] for t in asg.get("Tags", [])}
 
-                # Skip Kubernetes nodegroups unless user flag enables them
                 is_k8s = any(x in str(tags) for x in ["eks", "k8", "kubernetes"])
                 if is_k8s and not args.include_k8s_asg:
                     continue
 
-                # default count = 1 scanning unit per ASG
-                size = asg.get("DesiredCapacity", 1)
-
                 results.append({
-                    "resource": "ec2",       # customer sees it like scan unit
+                    "resource": "ec2",
                     "region": region,
                     "type": "asg",
-                    "lifecycle": f"asg({size})"
+                    "lifecycle": "asg"
                 })
 
     except:

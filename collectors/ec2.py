@@ -2,11 +2,9 @@
 
 import boto3
 
-def collect_ec2_instances(session, region, args=None):
+def collect_ec2_instances(session, region, args=None, debug=False):
     ec2 = session.client("ec2", region_name=region)
     result = []
-    skipped_asg = 0
-    skipped_stopped = 0
 
     try:
         paginator = ec2.get_paginator("describe_instances")
@@ -15,17 +13,14 @@ def collect_ec2_instances(session, region, args=None):
                 for inst in reservation.get("Instances", []):
 
                     state = inst.get("State", {}).get("Name")
-
-                    # Skip stopped instances unless user requests otherwise
-                    if state == "stopped" and not args.include_stopped:
-                        skipped_stopped += 1
-                        continue
-
                     tags = {t["Key"]: t["Value"] for t in inst.get("Tags", [])}
 
-                    # Skip EC2 inside ASG unless user asks to count individually
+                    # Skip stopped unless flag
+                    if state == "stopped" and not args.include_stopped:
+                        continue
+
+                    # Skip if part of ASG unless flag
                     if "aws:autoscaling:groupName" in tags and not args.include_asg_instances:
-                        skipped_asg += 1
                         continue
 
                     result.append({
@@ -36,7 +31,8 @@ def collect_ec2_instances(session, region, args=None):
                     })
 
     except Exception as e:
-        # silent fail for customers
-        return result
+        if debug:
+            print(f"⚠️ EC2 scan failed in {region} → {e}")
+        return []                       # not silent fail anymore!
 
     return result
