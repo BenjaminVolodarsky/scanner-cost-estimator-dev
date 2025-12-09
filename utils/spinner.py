@@ -1,24 +1,23 @@
-import sys, threading, time
+import sys, time, threading
 
-spinner_active = False
+spinner_running = False
 
 def spinner():
-    while spinner_active:
-        for frame in "|/-\\":
-            sys.stdout.write(f"\r⏳ Scanning... {frame}")
-            sys.stdout.flush()
-            time.sleep(0.1)
-    sys.stdout.write("\r✔ Scan complete!       \n")
+    frames = "|/-\\"
+    i = 0
+    while spinner_running:
+        sys.stdout.flush()
+        i += 1
+        time.sleep(0.1)
     sys.stdout.flush()
 
 def start_spinner():
-    global spinner_active
-    spinner_active = True
+    global spinner_running
+    spinner_running = True
     t = threading.Thread(target=spinner)
     t.daemon = True
     t.start()
-    return t
 
 def stop_spinner():
-    global spinner_active
-    spinner_active = False
+    global spinner_running
+    spinner_running = False
