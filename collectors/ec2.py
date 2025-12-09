@@ -1,27 +1,22 @@
 import boto3
 
-def collect_ec2_instances():
-    ec2 = boto3.client("ec2", region_name="us-east-1")
-
-    response = ec2.describe_instances()
-
+def collect_ec2_instances(session, region):
+    ec2 = session.client("ec2", region_name=region)
     instances = []
-    for reservation in response.get("Reservations", []):
-        for inst in reservation.get("Instances", []):
+
+    resp = ec2.describe_instances()
+    for res in resp['Reservations']:
+        for inst in res['Instances']:
             instances.append({
+                "type": "ec2",
+                "region": region,
                 "instance_id": inst.get("InstanceId"),
                 "instance_type": inst.get("InstanceType"),
-                "lifecycle": inst.get("InstanceLifecycle", "on-demand"),  # spot or on-demand
+                "lifecycle": inst.get("InstanceLifecycle", "on-demand"),
                 "state": inst.get("State", {}).get("Name"),
                 "launch_time": inst.get("LaunchTime").isoformat(),
                 "private_ip": inst.get("PrivateIpAddress"),
                 "public_ip": inst.get("PublicIpAddress"),
-                "availability_zone": inst.get("Placement", {}).get("AvailabilityZone"),
                 "tags": {t["Key"]: t["Value"] for t in inst.get("Tags", [])}
             })
-
-    print(f"Found {len(instances)} instances:")
-    for i in instances:
-        print(i)
-
     return instances

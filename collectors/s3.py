@@ -1,51 +1,40 @@
 import boto3
-from datetime import datetime, timedelta
 
-def get_bucket_size_bytes(bucket_name, region):
-    cloudwatch = boto3.client("cloudwatch", region_name=region)
+def collect_s3_buckets(session, region=None):
+    # S3 is global — region parameter not required
+    s3 = session.client('s3')
 
-    # Most recent metric datapoint (AWS updates daily)
-    metric = cloudwatch.get_metric_statistics(
-        Namespace="AWS/S3",
-        MetricName="BucketSizeBytes",
-        Dimensions=[
-            {"Name": "BucketName", "Value": bucket_name},
-            {"Name": "StorageType", "Value": "StandardStorage"}  # cost-bearing storage
-        ],
-        StartTime=datetime.utcnow() - timedelta(days=3),
-        EndTime=datetime.utcnow(),
-        Period=86400,                   # 1 day
-        Statistics=["Average"]          # AWS stores one per day, avg is fine
-    )
+    result = []
+    buckets = s3.list_buckets().get('Buckets', [])
 
-    datapoints = metric.get("Datapoints", [])
-    if not datapoints:
-        return 0  # No metrics yet
+    print(f"📦 Found {len(buckets)} buckets")
 
-    return int(datapoints[-1]["Average"])   # Latest value
+    for b in buckets:
+        name = b["Name"]
 
+        # Try to detect region for bucket
+        try:
+            loc = s3.get_bucket_location(Bucket=name).get("LocationConstraint") or "us-east-1"
+        except:
+            loc = "unknown"
 
-def collect_s3_buckets():
-    s3 = boto3.client("s3")
-    response = s3.list_buckets()
+        # 🔥 Calculate total bucket size by iterating objects
+        total_bytes = 0
+        count = 0
+        try:
+            paginator = s3.get_paginator('list_objects_v2')
+            for page in paginator.paginate(Bucket=name):
+                for obj in page.get("Contents", []):
+                    total_bytes += obj["Size"]
+                    count += 1
+        except:
+            pass  # skip AccessDenied buckets
 
-    buckets = []
-
-    for bucket in response["Buckets"]:
-        name = bucket["Name"]
-
-        region_resp = s3.get_bucket_location(Bucket=name)
-        region = region_resp.get("LocationConstraint") or "us-east-1"
-
-        size_bytes = get_bucket_size_bytes(name, region)
-        size_gb = round(size_bytes / (1024**3), 3)
-
-        buckets.append({
-            "bucket_name": name,
-            "region": region,
-            "created_at": bucket["CreationDate"].isoformat(),
-            "size_bytes": size_bytes,
-            "size_gb": size_gb
+        result.append({
+            "bucket": name,
+            "region": loc,
+            "total_gb": round(total_bytes / 1024**3, 2),
+            "objects": count
         })
 
-    return buckets
+    return result
