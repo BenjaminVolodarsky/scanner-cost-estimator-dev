@@ -47,9 +47,9 @@ def main():
     print(f"\n✔ Scan complete — resources collected: {len(results)}")
 
     write_output(results,
-        json_file="upwind_report.json",
-        csv_file="upwind_report.csv"
-    )
+                 json_filename="upwind_report.json",
+                 csv_filename="upwind_report.csv"
+                 )
 
     print("\n📄 Output saved:")
     print("   📁 upwind_report.json")
