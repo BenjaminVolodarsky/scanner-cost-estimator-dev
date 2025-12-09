@@ -27,8 +27,8 @@ def main():
         all_data += collect_auto_scaling_groups(session, region)
 
     print("\n📦 Collecting S3 Buckets globally...")
-    session_global = boto3.Session()
-    all_data += collect_s3_buckets(session_global)
+    s3_data = collect_s3_buckets(session_global)
+    all_data += s3_data
 
     print(f"\n✔ Done. Total collected items: {len(all_data)}")
     write_output(all_data,
