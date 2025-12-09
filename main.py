@@ -42,7 +42,6 @@ def scan_region(region, args):
 
 
 def main():
-    print("\n🚀 Upwind CloudScanner Cost Estimator\n")
     identity = boto3.client("sts").get_caller_identity()
 
     args = parse_args()
@@ -58,7 +57,6 @@ def main():
     stop_spinner()
 
     # --- S3 SCAN GLOBAL ---
-    print("\n📦 Collecting S3 Buckets global...")
     results += collect_s3_buckets(boto3.Session())
 
     print(f"\n✔ Scan complete — total collected: {len(results)}")
@@ -66,9 +64,9 @@ def main():
                  json_filename="upwind_report.json",
                  csv_filename="upwind_report.csv")
 
-    print("\n📄 Output:")
-    print("   📁 output/upwind_report.json")
-    print("   📁 output/upwind_report.csv\n")
+    print("\n Output:")
+    print("   output/upwind_report.json")
+    print("   output/upwind_report.csv\n")
 
 
 if __name__ == "__main__":
