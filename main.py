@@ -12,7 +12,7 @@ from collectors.test import collect_asg
 def main():
     print("collecting Environment sizing for Cloudscanner Cost Estimation")
 
-    write_output(collect_asg())
+    write_output(collect_s3_buckets())
 
 if __name__ == "__main__":
     main()

@@ -9,7 +9,6 @@ def collect_asg():
     for bucket in response["Buckets"]:
         bucket_name = bucket["Name"]
 
-        # Get bucket region
         region_resp = s3.get_bucket_location(Bucket=bucket_name)
         region = region_resp.get("LocationConstraint") or "us-east-1"
 
