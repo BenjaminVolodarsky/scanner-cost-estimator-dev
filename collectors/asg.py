@@ -2,16 +2,21 @@ import boto3
 
 def collect_auto_scaling_groups():
     asg = boto3.client("autoscaling")
+
     response = asg.describe_auto_scaling_groups()
 
     groups = []
-    for group in response.get("AutoScalingGroups", []):
+    for group in response["AutoScalingGroups"]:
         groups.append({
-            "name": group.get("AutoScalingGroupName"),
-            "desired_capacity": group.get("DesiredCapacity"),
-            "min_size": group.get("MinSize"),
-            "max_size": group.get("MaxSize"),
-            "instances": len(group.get("Instances", [])),
+            "name": group["AutoScalingGroupName"],
+            "desired": group["DesiredCapacity"],
+            "min": group["MinSize"],
+            "max": group["MaxSize"],
+            "instances": [i["InstanceId"] for i in group["Instances"]],
+            "launch_template": group.get("LaunchTemplate", {}),
+            "tags": {t["Key"]: t["Value"] for t in group.get("Tags", [])},
         })
+
+        print(groups)
 
     return groups
