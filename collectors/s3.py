@@ -45,9 +45,7 @@ def collect_s3_buckets(session, region=None, args=None):
 
         results.append({
             "resource": "s3_bucket",
-            "bucket_name": name,
             "region": loc,
-            "creation_date": creation,
             "size_gb": size_gb
         })
 

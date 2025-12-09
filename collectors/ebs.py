@@ -13,11 +13,8 @@ def collect_ebs_volumes(session, region, args=None):
         volumes.append({
             "type": "ebs",
             "region": region,
-            "volume_id": v.get("VolumeId"),
             "size_gb": v.get("Size"),
             "type": v.get("VolumeType"),
-            "iops": v.get("Iops"),
-            "state": v.get("State"),
         })
 
     return volumes

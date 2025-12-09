@@ -10,6 +10,7 @@ from collectors.lambda_functions import collect_lambda_functions
 from output.writer import write_output
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import argparse
+from collectors.asgConverter import collect_asg_as_ec2_equivalent
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Upwind CloudScanner Cost Estimator")
@@ -27,21 +28,21 @@ def parse_args():
 
 
 def scan_region(region, args):
-    """Scan a single AWS region for resources"""
     print(f"🌍 Scanning region: {region}")
     session = boto3.Session(region_name=region)
 
     try:
         return (
-                collect_ec2_instances(session, region, args) +
-                collect_ebs_volumes(session, region, args) +
-                collect_auto_scaling_groups(session, region, args) +
-                collect_lambda_functions(session, region, args)
+            collect_ec2_instances(session, region, args) +
+            collect_asg_as_ec2_equivalent(session, region, args) +  # << here
+            collect_ebs_volumes(session, region, args) +
+            collect_lambda_functions(session, region, args)
         )
 
     except Exception as e:
-        print(f"⚠️ Failed scanning region {region} → {e}")
+        print(f"⚠️ Region failed {region} → {e}")
         return []
+
 
 
 def main():
