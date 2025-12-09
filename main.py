@@ -23,6 +23,7 @@ def main():
         session = boto3.Session(region_name=region)
         all_data += collect_ec2_instances(session, region)
         all_data += collect_ebs_volumes(session, region)
+        all_data += collect_s3_buckets(session, region)
         all_data += collect_auto_scaling_groups(session, region)
 
     print("\n📦 Collecting S3 Buckets globally...")

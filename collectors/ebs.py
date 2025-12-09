@@ -1,20 +1,23 @@
 import boto3
+from utils.safe_call import safe_aws_call
 
-def collect_ebs_volumes():
-    ec2 = boto3.client("ec2")
-    response = ec2.describe_volumes()
+def collect_ebs_volumes(session, region):
+    ec2 = session.client("ec2", region_name=region)
+
+    resp = safe_aws_call(lambda: ec2.describe_volumes(), region)
+    if not resp:
+        return []
 
     volumes = []
-    for vol in response.get("Volumes", []):
+    for v in resp.get("Volumes", []):
         volumes.append({
-            "volume_id": vol.get("VolumeId"),
-            "size_gb": vol.get("Size"),
-            "type": vol.get("VolumeType"),
-            "iops": vol.get("Iops"),
-            "state": vol.get("State"),
-            "region": ec2.meta.region_name,
+            "type": "ebs",
+            "region": region,
+            "volume_id": v.get("VolumeId"),
+            "size_gb": v.get("Size"),
+            "type": v.get("VolumeType"),
+            "iops": v.get("Iops"),
+            "state": v.get("State"),
         })
-
-    print(volumes)
 
     return volumes
