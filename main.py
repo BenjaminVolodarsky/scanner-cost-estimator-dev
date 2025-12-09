@@ -44,7 +44,6 @@ def scan_region(region, args):
 def main():
     print("\n🚀 Upwind CloudScanner Cost Estimator\n")
     identity = boto3.client("sts").get_caller_identity()
-    print(f"🏢 Account: {identity['Account']}\n")
 
     args = parse_args()
     regions = list_regions()
