@@ -1,20 +1,16 @@
-import sys, time, threading
+import time, threading
 
 spinner_running = False
 
-def spinner():
-    frames = "|/-\\"
-    i = 0
+def spinner_silent():
+    # does nothing except wait — no printing
     while spinner_running:
-        sys.stdout.flush()
-        i += 1
-        time.sleep(0.1)
-    sys.stdout.flush()
+        time.sleep(0.2)
 
 def start_spinner():
     global spinner_running
     spinner_running = True
-    t = threading.Thread(target=spinner)
+    t = threading.Thread(target=spinner_silent)
     t.daemon = True
     t.start()
 

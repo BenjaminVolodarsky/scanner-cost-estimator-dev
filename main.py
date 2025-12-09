@@ -56,7 +56,8 @@ def main():
 
     results = []
 
-    spinner_thread = start_spinner()
+    start_spinner()
+
     with ThreadPoolExecutor(max_workers=10) as executor:
         futures = [executor.submit(scan_region, r, args) for r in regions]
         for f in as_completed(futures):
