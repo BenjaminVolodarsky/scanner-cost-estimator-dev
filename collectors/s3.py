@@ -34,11 +34,9 @@ def collect_s3_buckets():
     for bucket in response["Buckets"]:
         name = bucket["Name"]
 
-        # Determine bucket region
         region_resp = s3.get_bucket_location(Bucket=name)
         region = region_resp.get("LocationConstraint") or "us-east-1"
 
-        # Fetch bucket size from CloudWatch
         size_bytes = get_bucket_size_bytes(name, region)
         size_gb = round(size_bytes / (1024**3), 3)
 
@@ -50,5 +48,4 @@ def collect_s3_buckets():
             "size_gb": size_gb
         })
 
-    print("S3 Buckets discovered:", buckets)
     return buckets
