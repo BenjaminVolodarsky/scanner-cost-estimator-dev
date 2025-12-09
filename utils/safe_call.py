@@ -1,7 +1,9 @@
-from botocore.exceptions import ClientError, EndpointConnectionError
+import botocore
 
-def safe_aws_call(fn, region):
+def safe_call(fn):
     try:
         return fn()
-    except (ClientError, EndpointConnectionError) as e:
+    except botocore.exceptions.ClientError:
+        return None
+    except Exception:
         return None
