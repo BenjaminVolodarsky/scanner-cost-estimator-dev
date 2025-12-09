@@ -6,7 +6,7 @@ from collectors.ec2 import collect_ec2_instances
 from collectors.ebs import collect_ebs_volumes
 from collectors.s3 import collect_s3_buckets
 from collectors.asg import collect_auto_scaling_groups
-from collectors.lambda import collect_lambda_functions
+from collectors.lambda_functions import collect_lambda_functions
 from output.writer import write_output
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
