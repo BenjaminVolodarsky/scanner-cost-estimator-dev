@@ -1,9 +1,17 @@
 import boto3
 
+
 def collect_ec2_test():
-    ec2 = boto3.client("ec2")
+    ec2 = boto3.client("ec2", region_name="us-east-1")  # ensure region is set
+
     response = ec2.describe_regions()
-    print('Regions:', response['Regions'])
 
-    return response
+    regions = [r['RegionName'] for r in response['Regions']]
 
+    print("Regions discovered:", regions)
+
+    # Return data in clean format
+    return {
+        "regions": regions,
+        "raw": response  # optional, remove later if not needed
+    }
