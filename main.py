@@ -26,19 +26,20 @@ def parse_args():
     return parser.parse_args()
 
 
-def scan_region(region):
+def scan_region(region, args):
     """Scan a single AWS region for resources"""
     print(f"🌍 Scanning region: {region}")
     session = boto3.Session(region_name=region)
 
     try:
         return (
-            collect_ec2_instances(session, region) +
-            collect_ebs_volumes(session, region) +
-            collect_s3_buckets(session, region) +
-            collect_auto_scaling_groups(session, region) +
-            collect_lambda_functions(session, region)       # <-- now correct
+                collect_ec2_instances(session, region, args) +
+                collect_ebs_volumes(session, region, args) +
+                collect_s3_buckets(session, region, args) +
+                collect_auto_scaling_groups(session, region, args) +
+                collect_lambda_functions(session, region, args)
         )
+
     except Exception as e:
         print(f"⚠️ Failed scanning region {region} → {e}")
         return []
