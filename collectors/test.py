@@ -17,4 +17,6 @@ def collect_asg():
             "tags": {t["Key"]: t["Value"] for t in group.get("Tags", [])},
         })
 
+        print(groups)
+
     return groups
