@@ -9,6 +9,21 @@ from collectors.asg import collect_auto_scaling_groups
 from collectors.lambda_functions import collect_lambda_functions
 from output.writer import write_output
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import argparse
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Upwind CloudScanner Cost Estimator")
+
+    parser.add_argument("--include-stopped", action="store_true",
+                        help="Include stopped EC2 instances")
+
+    parser.add_argument("--include-asg-instances", action="store_true",
+                        help="Count individual EC2 inside ASG instead of 1 per ASG")
+
+    parser.add_argument("--include-k8s-asg", action="store_true",
+                        help="Do not skip Kubernetes ASGs")
+
+    return parser.parse_args()
 
 
 def scan_region(region):
@@ -40,10 +55,14 @@ def main():
     results = []
 
     # Scan all regions concurrently
+    args = parse_args()
+
+    results = []
+
     with ThreadPoolExecutor(max_workers=10) as executor:
-        futures = [executor.submit(scan_region, r) for r in regions]
+        futures = [executor.submit(scan_region, r, args) for r in regions]
         for f in as_completed(futures):
-            results.extend(f.result())
+            results += f.result()
 
     print(f"\n✔ Scan complete — resources collected: {len(results)}")
 

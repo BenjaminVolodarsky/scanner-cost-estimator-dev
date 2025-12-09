@@ -1,31 +1,39 @@
 import boto3
-from botocore.exceptions import ClientError
 
-
-def collect_ec2_instances(session, region):
-    ec2 = session.client("ec2", region_name=region)
+def collect_ec2_instances(session, region, args):
+    client = session.client("ec2", region_name=region)
+    result = []
 
     try:
-        resp = ec2.describe_instances()
-    except ClientError as e:
-        print(f"⚠️  Skipping region {region} (no access / not enabled) → {e.response['Error']['Code']}")
-        return []
+        paginator = client.get_paginator("describe_instances")
+        for page in paginator.paginate():
+            for reservation in page.get("Reservations", []):
+                for inst in reservation.get("Instances", []):
 
-    instances = []
-    for res in resp.get("Reservations", []):
-        for inst in res.get("Instances", []):
-            instances.append({
-                "type": "ec2",
-                "region": region,
-                "instance_id": inst.get("InstanceId"),
-                "instance_type": inst.get("InstanceType"),
-                "lifecycle": inst.get("InstanceLifecycle", "on-demand"),
-                "state": inst.get("State", {}).get("Name"),
-                "launch_time": inst.get("LaunchTime").isoformat() if inst.get("LaunchTime") else None,
-                "private_ip": inst.get("PrivateIpAddress"),
-                "public_ip": inst.get("PublicIpAddress"),
-                "availability_zone": inst.get("Placement", {}).get("AvailabilityZone"),
-                "tags": {t["Key"]: t["Value"] for t in inst.get("Tags", [])}
-            })
+                    state = inst.get("State", {}).get("Name")
 
-    return instances
+                    # skip stopped unless flag
+                    if state == "stopped" and not args.include_stopped:
+                        continue
+
+                    tags = {t["Key"]: t["Value"] for t in inst.get("Tags", [])}
+
+                    # skip EC2 part of ASG unless flag
+                    if "aws:autoscaling:groupName" in tags and not args.include_asg_instances:
+                        continue
+
+                    result.append({
+                        "resource": "ec2",
+                        "region": region,
+                        "instance_id": inst.get("InstanceId"),
+                        "instance_type": inst.get("InstanceType"),
+                        "lifecycle": inst.get("InstanceLifecycle", "on-demand"),
+                        "state": state,
+                        "private_ip": inst.get("PrivateIpAddress"),
+                        "tags": tags
+                    })
+
+    except Exception as e:
+        print(f"⚠️ EC2 scan failed in {region} → {e}")
+
+    return result
