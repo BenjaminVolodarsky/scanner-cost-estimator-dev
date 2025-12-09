@@ -59,7 +59,7 @@ def main():
     # --- S3 SCAN GLOBAL ---
     results += collect_s3_buckets(boto3.Session())
 
-    print(f"\n✔ Scan complete — total collected: {len(results)}")
+    print(f"\n✔ Scan complete — total collected Assets: {len(results)}")
     write_output(results,
                  json_filename="upwind_report.json",
                  csv_filename="upwind_report.csv")
