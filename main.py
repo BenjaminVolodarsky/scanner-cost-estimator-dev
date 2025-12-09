@@ -11,6 +11,7 @@ from output.writer import write_output
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import argparse
 from collectors.asgConverter import collect_asg_as_ec2_equivalent
+from utils.summary import generate_summary, print_summary
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Upwind CloudScanner Cost Estimator")
@@ -75,9 +76,8 @@ def main():
                  csv_filename="upwind_report.csv"
                  )
 
-    print("\n📄 Output saved:")
-    print("   📁 upwind_report.json")
-    print("   📁 upwind_report.csv\n")
+    summary = generate_summary(results)
+    print_summary(summary)
 
 
 if __name__ == "__main__":
