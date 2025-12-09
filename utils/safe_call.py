@@ -1,6 +1,8 @@
+# utils/safe_call.py
+
 import botocore
 
-def safe_call(fn):
+def safe_aws_call(fn):
     try:
         return fn()
     except botocore.exceptions.ClientError:
