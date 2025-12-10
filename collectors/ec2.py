@@ -13,11 +13,9 @@ def collect_ec2_instances(session, region, args=None, debug=False):
                     state = inst.get("State", {}).get("Name")
                     tags = {t["Key"]: t["Value"] for t in inst.get("Tags", [])}
 
-                    # Skip stopped unless flag
                     if state == "stopped" and not args.include_stopped:
                         continue
 
-                    # Skip if part of ASG unless flag
                     if "aws:autoscaling:groupName" in tags and not args.include_asg_instances:
                         continue
 

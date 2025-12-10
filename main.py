@@ -42,8 +42,6 @@ def scan_region(region, args):
 
 
 def main():
-    identity = boto3.client("sts").get_caller_identity()
-
     args = parse_args()
     regions = list_regions()
     results = []
