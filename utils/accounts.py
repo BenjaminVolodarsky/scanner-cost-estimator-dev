@@ -9,7 +9,6 @@ def list_org_accounts():
             accounts += [{"account_id": a["Id"], "name": a["Name"]} for a in p["Accounts"]]
         return accounts
     except:
-        # fallback single account mode
         acc = boto3.client("sts").get_caller_identity()["Account"]
         return [{"account_id": acc, "name": "Local"}]
 

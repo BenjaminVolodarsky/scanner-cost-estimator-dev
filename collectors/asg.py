@@ -1,6 +1,5 @@
 import boto3
 
-# tags used to detect Kubernetes
 K8S_TAG_KEYS = [
     "kubernetes.io/cluster/",
     "k8s.io/cluster-autoscaler/enabled",
@@ -28,7 +27,6 @@ def collect_auto_scaling_groups(session, region, args=None):
                 tags = {t["Key"]: t["Value"] for t in asg.get("Tags", [])}
                 is_k8s = is_kubernetes_asg(tags)
 
-                # skip Kubernetes ASG unless flag overrides
                 if is_k8s and not args.include_k8s_asg:
                     continue
 

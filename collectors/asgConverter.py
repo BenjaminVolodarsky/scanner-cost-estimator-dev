@@ -1,7 +1,5 @@
 import boto3
 
-# simple ASG → ec2-like lightweight output
-
 def collect_asg_as_ec2_equivalent(session, region, args=None):
     client = session.client("autoscaling", region_name=region)
     results = []

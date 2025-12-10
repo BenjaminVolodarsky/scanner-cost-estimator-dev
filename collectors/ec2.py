@@ -1,5 +1,3 @@
-# collectors/ec2.py
-
 import boto3
 
 def collect_ec2_instances(session, region, args=None, debug=False):

@@ -48,7 +48,6 @@ def main():
     regions = list_regions()
     results = []
 
-    # --- REGION SCANNING ---
     start_spinner()
     with ThreadPoolExecutor(max_workers=10) as executor:
         futures = [executor.submit(scan_region, r, args) for r in regions]
@@ -56,7 +55,6 @@ def main():
             results += f.result()
     stop_spinner()
 
-    # --- S3 SCAN GLOBAL ---
     results += collect_s3_buckets(boto3.Session())
 
     print(f"\n✔ Scan complete — total collected Assets: {len(results)}")

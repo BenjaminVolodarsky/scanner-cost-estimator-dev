@@ -1,10 +1,7 @@
-# collectors/s3.py
-
 import boto3
 from datetime import datetime, timedelta
 
 def collect_s3_buckets(session, region=None, args=None):
-    """S3 buckets are GLOBAL — only run once on first call"""
 
     s3 = session.client("s3")
     cw = session.client("cloudwatch")

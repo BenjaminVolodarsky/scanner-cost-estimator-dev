@@ -1,5 +1,3 @@
-# utils/safe_call.py
-
 import botocore
 
 def safe_aws_call(fn):

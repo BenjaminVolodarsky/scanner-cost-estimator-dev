@@ -1,4 +1,3 @@
-# utils/spinner.py
 import sys, time, threading
 
 _spinner_active = False
