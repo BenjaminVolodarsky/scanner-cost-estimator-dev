@@ -1,5 +1,4 @@
 import boto3
-from datetime import datetime, timedelta
 
 def collect_s3_buckets(session, region=None, args=None):
 
@@ -16,7 +15,6 @@ def collect_s3_buckets(session, region=None, args=None):
         name = bucket["Name"]
         creation = bucket["CreationDate"].isoformat()
 
-        # bucket region lookup
         try:
             loc = s3.get_bucket_location(Bucket=name)["LocationConstraint"] or "us-east-1"
         except:
