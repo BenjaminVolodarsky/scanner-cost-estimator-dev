@@ -10,7 +10,7 @@ def _spin():
         sys.stdout.flush()
         i += 1
         time.sleep(0.12)
-    sys.stdout.write("\r")   # clear spinner on stop
+    sys.stdout.write("\r")
 
 
 def start_spinner():
@@ -24,4 +24,4 @@ def start_spinner():
 def stop_spinner():
     global _spinner_active
     _spinner_active = False
-    time.sleep(0.15)  # allow final frame flush
+    time.sleep(0.15)

@@ -29,6 +29,6 @@ def collect_ec2_instances(session, region, args=None, debug=False):
     except Exception as e:
         if debug:
             print(f"⚠️ EC2 scan failed in {region} → {e}")
-        return []                       # not silent fail anymore!
+        return []
 
     return result

@@ -1,4 +1,4 @@
-# Upwind CloudScanner Cost Estimator
+# Scanner Cost Estimator
 
 Lightweight read-only AWS footprint collector.  
 Designed to estimate CloudScanner usage cost without deploying agents or running CloudFormation.
