@@ -15,8 +15,8 @@ def list_org_accounts():
 
 def find_assumable_role(account_id):
     roles_to_try = [
-        "OrganizationAccountAccessRole",      # default AWS org trust role
-        "AWSReservedSSO_AdministratorAccess*", # SSO-based
+        "OrganizationAccountAccessRole",
+        "AWSReservedSSO_AdministratorAccess*",
         "AWSReservedSSO_*",
     ]
 
