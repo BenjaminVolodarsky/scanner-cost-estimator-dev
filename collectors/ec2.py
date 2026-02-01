@@ -1,6 +1,6 @@
 import boto3
 
-def collect_ec2_instances(session, region, args=None, debug=False):
+def collect_ec2_instances(session, region, args=None, account_id="unknown"):
     ec2 = session.client("ec2", region_name=region)
     result = []
 
@@ -9,26 +9,22 @@ def collect_ec2_instances(session, region, args=None, debug=False):
         for page in paginator.paginate():
             for reservation in page.get("Reservations", []):
                 for inst in reservation.get("Instances", []):
-
                     state = inst.get("State", {}).get("Name")
                     tags = {t["Key"]: t["Value"] for t in inst.get("Tags", [])}
 
                     if state == "stopped" and not args.include_stopped:
                         continue
-
                     if "aws:autoscaling:groupName" in tags and not args.include_asg_instances:
                         continue
 
                     result.append({
+                        "account_id": account_id,  # Added account identifier
                         "resource": "ec2",
                         "region": region,
                         "type": inst.get("InstanceType"),
                         "lifecycle": inst.get("InstanceLifecycle", "on-demand"),
+                        "state": state
                     })
-
-    except Exception as e:
-        if debug:
-            print(f"⚠️ EC2 scan failed in {region} → {e}")
+    except Exception:
         return []
-
     return result
