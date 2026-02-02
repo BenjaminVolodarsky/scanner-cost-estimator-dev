@@ -1,6 +1,6 @@
 import warnings
 
-# Filter specific Boto3/Python 3.9 deprecation warnings by message content
+# Filter specific Boto3/Python 3.9 deprecation warnings
 warnings.filterwarnings("ignore", message=".*Boto3 will no longer support Python 3.9.*")
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
@@ -22,7 +22,7 @@ from collectors.asgConverter import collect_asg_as_ec2_equivalent
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - [%(account_id)s] %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S',  # This removes the milliseconds
+    datefmt='%Y-%m-%d %H:%M:%S',
     handlers=[logging.StreamHandler(sys.stdout)]
 )
 logger = logging.getLogger("CloudScanner")
@@ -43,7 +43,6 @@ def is_management_account():
         org_info = org.describe_organization()['Organization']
         sts = boto3.client('sts')
         current_id = sts.get_caller_identity()['Account']
-        # Check both MasterAccountId (old) and ManagementAccountId (new)
         return current_id == org_info.get('MasterAccountId') or current_id == org_info.get('ManagementAccountId')
     except Exception:
         return False
@@ -130,9 +129,12 @@ def scan_account(account_info, is_mgmt_node=False):
     account_errors = set()
 
     # S3 Scan (Global)
-    s3_data, s3_err = collect_s3_buckets(session, account_id)
-    if s3_data: account_results.extend(s3_data)
-    if s3_err: account_errors.add(s3_err)
+    try:
+        s3_data, s3_err = collect_s3_buckets(session, account_id)
+        if s3_data: account_results.extend(s3_data)
+        if s3_err: account_errors.add(s3_err)
+    except Exception:
+        pass
 
     # Regional Scans
     account_regions = list_regions(session)
@@ -179,7 +181,8 @@ def main():
 
     # Execution Loop
     for acc in scan_list:
-        print("")
+        print("")  # Line break between accounts for visibility
+
         try:
             sts = boto3.client("sts")
             curr_id = sts.get_caller_identity()["Account"]
@@ -189,8 +192,6 @@ def main():
             results = scan_account(acc, is_node)
             all_results.extend(results)
 
-            # Check if this account had warnings (You'd need scan_account to return a status flag)
-            # For now, simplest proxy is checking if result count is 0 but account exists
             if len(results) == 0:
                 partial_count += 1
             else:
@@ -199,10 +200,14 @@ def main():
         except Exception as e:
             log_warn(f"Failed to scan {acc['name']}: {str(e)}", acc['id'])
 
-    print("")
+    # Final Summary
+    print("")  # Final line break
     log_info(
         f"Summary: {full_success_count} full scans, {partial_count} partial/empty scans out of {total_accounts} total.",
         "SYSTEM")
+
+    # WRITE OUTPUT (This was missing!)
+    write_output(all_results)
 
 
 if __name__ == "__main__":
