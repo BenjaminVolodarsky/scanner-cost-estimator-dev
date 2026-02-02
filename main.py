@@ -22,6 +22,7 @@ from collectors.asgConverter import collect_asg_as_ec2_equivalent
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - [%(account_id)s] %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',  # This removes the milliseconds
     handlers=[logging.StreamHandler(sys.stdout)]
 )
 logger = logging.getLogger("CloudScanner")

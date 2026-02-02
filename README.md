@@ -1,39 +1,51 @@
-# Scanner Cost Estimator
+# Cloud Scanner & Cost Estimator
 
-Lightweight read-only AWS footprint collector.  
-Designed to estimate CloudScanner usage cost without deploying agents or running CloudFormation.
+## Prerequisites
 
----
+* **Python 3.9+**
+* **Boto3** (`pip install boto3`)
+* **AWS Credentials** configured in the environment.
 
-## What this tool collects
+## Permissions
 
-| Resource | Data collected |
-|---|---|
-| EC2 Instances | type + lifecycle (spot/on-demand), filtered by stopped/ASG rules |
-| AutoScaling Groups | counted as 1 target by default or expanded via flag |
-| EBS Volumes | type + size(GiB) |
-| S3 Buckets | size estimate from CloudWatch metrics |
-| Lambda Functions | memory + code size |
+The script relies on the default cross-account role mechanism.
 
----
+* **Management Account (Runner):**
+    * `organizations:ListAccounts`
+    * `organizations:DescribeOrganization`
+    * `sts:AssumeRole`
+* **Member Accounts (Target):**
+    * Role: `OrganizationAccountAccessRole` (must exist)
+    * Policy: `ReadOnlyAccess` (or equivalent permissions for EC2, Lambda, S3, AutoScaling)
 
-## Required IAM Permissions (Read-Only)
+## Installation
 
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [{
-      "Effect": "Allow",
-      "Action": [
-        "ec2:DescribeInstances",
-        "ec2:DescribeVolumes",
-        "autoscaling:DescribeAutoScalingGroups",
-        "s3:ListAllMyBuckets",
-        "s3:GetBucketLocation",
-        "cloudwatch:GetMetricStatistics",
-        "lambda:ListFunctions",
-        "lambda:ListTags"
-      ],
-      "Resource": "*"
-  }]
-}
+```bash
+git clone https://github.com/BenjaminVolodarsky/scanner-cost-estimator-dev.git
+cd scanner-cost-estimator-dev
+```
+* If boto3 is not already installed (e.g. outside CloudShell):
+```bash
+pip install boto3
+```
+
+# Usage
+Run the script:
+```bash
+./upwind
+```
+* Management Account should Scan all active member accounts in the Organization, if given the right permissions and policies as outlined in the Permissions section.
+
+* Member Account: Scans only the *local account*.
+
+### Output
+Results are generated in the output/ directory:
+
+* output.csv: Flat resource list (Account, Region, Type, Specs).
+----
+## Troubleshooting
+### Partial scan / Missing permissions:
+* If logs indicate missing permissions for a specific account, ensure the OrganizationAccountAccessRole in that member account has the ReadOnlyAccess policy attached.
+
+* OrganizationAccountAccessRole missing:
+If the role cannot be assumed, it may not exist (common in invited accounts). Create the role manually in the member account and trust the Management Account ID.
