@@ -6,7 +6,6 @@ import sys
 import boto3
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from utils.regions import list_regions
-from utils.spinner import start_spinner, stop_spinner
 from output.writer import write_output
 
 # Import collectors
@@ -36,38 +35,36 @@ def is_management_account():
         org_info = org.describe_organization()['Organization']
         sts = boto3.client('sts')
         current_id = sts.get_caller_identity()['Account']
-        # Return True if current ID matches the Management (Master) ID
-        return current_id == org_info['MasterAccountId']
+        # Use MasterAccountId for 2026 compatibility check
+        return current_id == org_info.get('MasterAccountId') or current_id == org_info.get('ManagementAccountId')
     except Exception:
-        # Fails if not in an Org or missing permissions
         return False
 
 
 def get_accounts():
     """Fetches active member accounts from the organization."""
-    org = boto3.client("organizations")
-    accounts = []
     try:
+        org = boto3.client("organizations")
+        accounts = []
         paginator = org.get_paginator("list_accounts")
         for page in paginator.paginate():
             for acc in page.get("Accounts", []):
-                # Using 2026-ready state check
                 state = acc.get("State") or acc.get("Status")
                 if state == "ACTIVE":
                     accounts.append({"id": acc["Id"], "name": acc["Name"]})
         return accounts
-    except Exception as e:
-        log_info(f"failed Starting scan for member accounts - sts:assumeRole on the management account is not enabled",
+    except Exception:
+        log_info("failed Starting scan for member accounts - sts:assumeRole on the management account is not enabled",
                  "SYSTEM")
         return None
 
 
-def get_assumed_session(account_id, role_name="OrganizationAccountAccessRole"):
-    """Assumes a role in a member account and returns a new session."""
+def get_assumed_session(account_id):
+    """Assumes role in member account."""
     sts = boto3.client("sts")
-    role_arn = f"arn:aws:iam::{account_id}:role/{role_name}"
+    role_arn = f"arn:aws:iam::{account_id}:role/OrganizationAccountAccessRole"
     try:
-        response = sts.assume_role(RoleArn=role_arn, RoleSessionName="CloudScannerEstimator")
+        response = sts.assume_role(RoleArn=role_arn, RoleSessionName="Scanner")
         creds = response["Credentials"]
         return boto3.Session(
             aws_access_key_id=creds["AccessKeyId"],
@@ -82,36 +79,28 @@ def scan_account(account_info, is_mgmt_node=False):
     account_id = account_info["id"]
     name = account_info["name"]
     suffix = " [Management Account]" if is_mgmt_node else ""
-
     log_info(f"Starting scan for account: {name} ({account_id}){suffix}", account_id)
 
     try:
         sts = boto3.client("sts")
         curr_id = sts.get_caller_identity()["Account"]
+        session = boto3.Session() if account_id == curr_id else get_assumed_session(account_id)
 
-        # Use local session if it is the current account
-        if account_id == curr_id:
-            session = boto3.Session()
-        else:
-            session = get_assumed_session(account_id)
-            if not session:
-                log_info(
-                    f"failed Starting scan for account: {name} ({account_id}) - OrganizationAccountAccessRole missing",
-                    account_id)
-                return []
+        if not session:
+            log_info(f"failed Starting scan for account: {name} ({account_id}) - OrganizationAccountAccessRole missing",
+                     account_id)
+            return []
 
-        account_regions = list_regions(session)
         account_results = []
-
-        # S3 is a global service; scan once per account
+        # extend ensures we add the dictionaries to the list, not the list itself
         account_results.extend(collect_s3_buckets(session, account_id))
 
+        account_regions = list_regions(session)
         with ThreadPoolExecutor(max_workers=5) as executor:
             futures = [executor.submit(scan_region_logic, session, r, account_id) for r in account_regions]
             for f in as_completed(futures):
                 region_data = f.result()
-                # Fixed aggregation: merge lists rather than nesting
-                if isinstance(region_data, list):
+                if region_data:
                     account_results.extend(region_data)
 
         log_info(f"Scan complete. Found {len(account_results)} resources.", account_id)
@@ -123,7 +112,7 @@ def scan_account(account_info, is_mgmt_node=False):
 def scan_region_logic(session, region, account_id):
     """Aggregates all regional findings into a single flat list."""
     region_results = []
-    # Collectors return flat lists; use extend to keep them merged
+    # Always use extend to merge lists into one flat list
     region_results.extend(collect_ec2_instances(session, region, account_id))
     region_results.extend(collect_ebs_volumes(session, region, account_id))
     region_results.extend(collect_lambda_functions(session, region, account_id))
@@ -142,10 +131,9 @@ def main():
     if accounts:
         for acc in accounts:
             sts = boto3.client("sts")
-            is_mgmt_node = (acc["id"] == sts.get_caller_identity()["Account"])
-            all_results.extend(scan_account(acc, is_mgmt_node))
+            is_node = (acc["id"] == sts.get_caller_identity()["Account"])
+            all_results.extend(scan_account(acc, is_node))
     else:
-        # Fallback to local scan if not in a Management account
         sts = boto3.client("sts")
         curr_id = sts.get_caller_identity()["Account"]
         all_results.extend(scan_account({"id": curr_id, "name": "Local-Account"}, is_mgmt))
