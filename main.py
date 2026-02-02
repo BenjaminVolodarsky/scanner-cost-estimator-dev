@@ -99,7 +99,7 @@ def scan_account(account_info, regions):
             for f in as_completed(futures):
                 account_results += f.result()
 
-        return account_results  # Success return
+        return account_results
 
     except Exception as e:
         log_error(f"💥 Unexpected error in scan_account: {str(e)}", account_id)
@@ -107,11 +107,21 @@ def scan_account(account_info, regions):
 
 
 def scan_region_logic(session, region, account_id):
+    """Orchestrates all regional collection for a specific account."""
     region_results = []
-    region_results += collect_ec2_instances(session, region, account_id)
-    region_results += collect_asg_as_ec2_equivalent(session, region, account_id)
-    region_results += collect_ebs_volumes(session, region, account_id)
-    region_results += collect_lambda_functions(session, region, account_id)
+
+    # 1. Collect EC2 Instances
+    region_results += collect_ec2_instances(session, region, account_id=account_id)
+
+    # 2. Collect ASGs
+    region_results += collect_asg_as_ec2_equivalent(session, region, account_id=account_id)
+
+    # 3. Collect EBS Volumes
+    region_results += collect_ebs_volumes(session, region, account_id=account_id)
+
+    # 4. Collect Lambda Functions
+    region_results += collect_lambda_functions(session, region, account_id=account_id)
+
     return region_results
 
 def main():
