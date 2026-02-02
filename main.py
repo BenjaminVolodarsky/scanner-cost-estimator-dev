@@ -114,6 +114,7 @@ def scan_account(account_info, role_name, is_runner_node=False):
     account_results = []
     account_errors = set()
 
+    # S3 Scan (Global)
     try:
         s3_data, s3_err = collect_s3_buckets(session, account_id)
         if s3_data: account_results.extend(s3_data)
@@ -121,6 +122,7 @@ def scan_account(account_info, role_name, is_runner_node=False):
     except Exception:
         pass
 
+    # Regional Scans
     account_regions = list_regions(session)
     with ThreadPoolExecutor(max_workers=5) as executor:
         futures = [executor.submit(scan_region_logic, session, r, account_id) for r in account_regions]
@@ -143,21 +145,28 @@ def main():
     parser = argparse.ArgumentParser(description="Cloud Scanner & Cost Estimator")
     parser.add_argument("--role", type=str, default="OrganizationAccountAccessRole",
                         help="The IAM Role name to assume in member accounts.")
-    # NEW ARGUMENT: Manual Account List
     parser.add_argument("--accounts", type=str,
                         help="Comma-separated list of account IDs to scan (bypasses auto-discovery).")
     args = parser.parse_args()
 
+    # Get Runner Identity
     sts = boto3.client("sts")
     runner_id = sts.get_caller_identity()["Account"]
 
     scan_list = []
 
+    # MODE 1: Manual List
     if args.accounts:
         ids = [x.strip() for x in args.accounts.split(",") if x.strip()]
         scan_list = [{"id": aid, "name": f"Manual-{aid}"} for aid in ids]
-        log_info(f"Manual mode enabled. Scanning {len(scan_list)} specific accounts.", "SYSTEM")
 
+        # FIX: Ensure Runner Account is included
+        if runner_id not in ids:
+            scan_list.append({"id": runner_id, "name": "Local-Account"})
+
+        log_info(f"Manual mode enabled. Scanning {len(scan_list)} accounts (including local).", "SYSTEM")
+
+    # MODE 2: Auto-Discovery
     else:
         accounts = get_accounts()
         if accounts:
