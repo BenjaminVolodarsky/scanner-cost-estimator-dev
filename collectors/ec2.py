@@ -7,23 +7,27 @@ def collect_ec2_instances(session, region, args=None, account_id="unknown"):
     try:
         paginator = ec2.get_paginator("describe_instances")
         for page in paginator.paginate():
-            for reservation in page.get("Reservations", []):
-                for inst in reservation.get("Instances", []):
-                    state = inst.get("State", {}).get("Name")
-                    tags = {t["Key"]: t["Value"] for t in inst.get("Tags", [])}
+            for reservation in response.get('Reservations', []):
+                for instance in reservation.get('Instances', []):
+                    try:
+                        # Check for K8s/EKS tags to exclude them
+                        tags = {t['Key']: t['Value'] for t in instance.get('Tags', [])}
+                        is_k8s = any(k in str(tags).lower() for k in ['eks', 'k8s', 'kubernetes'])
 
-                    if state == "stopped" and not args.include_stopped:
-                        continue
-                    if "aws:autoscaling:groupName" in tags and not args.include_asg_instances:
-                        continue
+                        if is_k8s:
+                            continue
 
-                    result.append({
-                        "account_id": account_id,
-                        "resource": "ec2",
-                        "region": region,
-                        "type": inst.get("InstanceType"),
-                        "state": state,
-                    })
+                        # SUCCESS: Append the instance data
+                        results.append({
+                            "account_id": account_id,
+                            "resource": "ec2",
+                            "instance_id": instance['InstanceId'],
+                            "type": instance['InstanceType'],
+                            "region": region,
+                            "state": instance['State']['Name']
+                        })
+                    except Exception as e:
+                        print(f"⚠️ Error processing instance {instance.get('InstanceId')}: {e}")
     except Exception as e:
         print(f"⚠️ EC2 error in {account_id} [{region}]: {e}")
         return []

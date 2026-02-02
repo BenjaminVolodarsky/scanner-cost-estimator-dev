@@ -63,18 +63,19 @@ def get_assumed_session(account_id, role_name="OrganizationAccountAccessRole"):
         return None
 
 
-def scan_account(account_info, regions):
+def scan_account(account_info):  # Removed regions_base as we get it dynamically now
     account_id = account_info["id"]
     account_name = account_info.get("name", "Unknown")
 
     log_info(f"🚀 Starting scan for {account_name}", account_id)
 
     try:
-        # Identify current caller to decide if we need to AssumeRole
+        # 1. Identify current identity
         sts_client = boto3.client("sts")
         current_identity = sts_client.get_caller_identity()
         current_account_id = current_identity["Account"]
 
+        # 2. Establish the Session
         if account_id == current_account_id:
             log_info("🏠 Using local session (no AssumeRole needed)", account_id)
             session = boto3.Session()
@@ -83,19 +84,23 @@ def scan_account(account_info, regions):
             session = get_assumed_session(account_id)
 
         if not session:
-            log_error("❌ Failed to create session. Skipping account.", account_id)
+            log_error("❌ Failed to create session (Check Trust Policy).", account_id)
             return []
 
-        # Double-check identity within the new session
+        # 3. Verify Session & Get Account-Specific Regions
         verified_id = session.client("sts").get_caller_identity()["Account"]
         log_info(f"✅ Session verified for account: {verified_id}", verified_id)
 
-        # MOVED INSIDE TRY: Start collecting data
+        # This fixes the 'Unresolved reference session' and the 'AuthFailure' noise
+        account_regions = list_regions(session)
+
         account_results = []
         account_results += collect_s3_buckets(session, account_id)
 
+        # 4. Multithreaded Regional Scan
         with ThreadPoolExecutor(max_workers=5) as executor:
-            futures = [executor.submit(scan_region_logic, session, r, account_id) for r in regions]
+            # Use account_regions here
+            futures = [executor.submit(scan_region_logic, session, r, account_id) for r in account_regions]
             for f in as_completed(futures):
                 account_results += f.result()
 
@@ -124,21 +129,23 @@ def scan_region_logic(session, region, account_id):
 
     return region_results
 
-def main():
-    regions = list_regions()
-    all_results = []
 
+def main():
+    all_results = []
     start_spinner()
 
+    # Get accounts from Organization
     accounts = get_accounts()
+
     if accounts:
-        # If we can see the Org, scan everything
         for acc in accounts:
-            all_results += scan_account(acc, regions)
+            # We no longer need to pass 'regions' here; scan_account handles it
+            all_results += scan_account(acc)
     else:
-        # Fallback to local account if not in a Management account
-        curr_id = boto3.client("sts").get_caller_identity()["Account"]
-        all_results += scan_account({"id": curr_id, "name": "Local-Account"}, regions)
+        # Fallback to local account
+        sts = boto3.client("sts")
+        curr_id = sts.get_caller_identity()["Account"]
+        all_results += scan_account({"id": curr_id, "name": "Local-Account"})
 
     stop_spinner()
     write_output(all_results)
