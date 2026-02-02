@@ -1,22 +1,20 @@
-# collectors/ebs.py
-from botocore.exceptions import ClientError
-
-
-def collect_ebs_volumes(session, region, account_id="unknown"):
+def collect_ebs_volumes(session, region, account_id):
     client = session.client("ec2", region_name=region)
     results = []
+    error = None
     try:
-        response = client.describe_volumes()
-        for vol in response.get('Volumes', []):
-            results.append({
-                "account_id": account_id,
-                "resource": "ebs",
-                "volume_id": vol['VolumeId'],
-                "region": region,
-                "size_gb": vol['Size'],
-                "state": vol['State']
-            })
-    except Exception:
-        # Silently fail on permission/auth errors to keep logs clean
-        pass
-    return results
+        paginator = client.get_paginator('describe_volumes')
+        for page in paginator.paginate():
+            for vol in page['Volumes']:
+                results.append({
+                    "account_id": account_id,
+                    "resource": "ebs",
+                    "region": region,
+                    "id": vol['VolumeId'],
+                    "size_gb": vol['Size'],
+                    "type": vol['VolumeType']
+                })
+    except Exception as e:
+        if "AccessDenied" in str(e) or "UnauthorizedOperation" in str(e):
+            error = "ec2:DescribeVolumes"
+    return results, error

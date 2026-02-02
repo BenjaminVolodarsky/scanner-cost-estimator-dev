@@ -15,7 +15,6 @@ from collectors.s3 import collect_s3_buckets
 from collectors.lambda_functions import collect_lambda_functions
 from collectors.asgConverter import collect_asg_as_ec2_equivalent
 
-# Organized Logging Configuration
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - [%(account_id)s] %(message)s',
@@ -28,39 +27,37 @@ def log_info(msg, account_id="SYSTEM"):
     logger.info(msg, extra={'account_id': account_id})
 
 
+def log_warn(msg, account_id="SYSTEM"):
+    logger.warning(msg, extra={'account_id': account_id})
+
+
 def is_management_account():
-    """Detects if running from the organization management account."""
     try:
         org = boto3.client('organizations')
         org_info = org.describe_organization()['Organization']
         sts = boto3.client('sts')
         current_id = sts.get_caller_identity()['Account']
-        # Use MasterAccountId for 2026 compatibility check
         return current_id == org_info.get('MasterAccountId') or current_id == org_info.get('ManagementAccountId')
     except Exception:
         return False
 
 
 def get_accounts():
-    """Fetches active member accounts from the organization."""
     try:
         org = boto3.client("organizations")
         accounts = []
         paginator = org.get_paginator("list_accounts")
         for page in paginator.paginate():
             for acc in page.get("Accounts", []):
-                state = acc.get("State") or acc.get("Status")
-                if state == "ACTIVE":
+                if acc.get("Status") == "ACTIVE":
                     accounts.append({"id": acc["Id"], "name": acc["Name"]})
         return accounts
     except Exception:
-        log_info("failed Starting scan for member accounts - sts:assumeRole on the management account is not enabled",
-                 "SYSTEM")
+        log_info("Running from member account or missing organizations:ListAccounts permission", "SYSTEM")
         return None
 
 
 def get_assumed_session(account_id):
-    """Assumes role in member account."""
     sts = boto3.client("sts")
     role_arn = f"arn:aws:iam::{account_id}:role/OrganizationAccountAccessRole"
     try:
@@ -75,49 +72,71 @@ def get_assumed_session(account_id):
         return None
 
 
+def scan_region_logic(session, region, account_id):
+    """
+    Returns a tuple: (list_of_resources, list_of_permission_errors)
+    """
+    region_results = []
+    region_errors = set()
+
+    # Call collectors. Each MUST return (data_list, error_str_or_None)
+    for collector in [collect_ec2_instances, collect_ebs_volumes, collect_lambda_functions,
+                      collect_asg_as_ec2_equivalent]:
+        data, error = collector(session, region, account_id)
+        if data:
+            region_results.extend(data)
+        if error:
+            region_errors.add(error)
+
+    return region_results, list(region_errors)
+
+
 def scan_account(account_info, is_mgmt_node=False):
     account_id = account_info["id"]
     name = account_info["name"]
     suffix = " [Management Account]" if is_mgmt_node else ""
     log_info(f"Starting scan for account: {name} ({account_id}){suffix}", account_id)
 
-    try:
-        sts = boto3.client("sts")
-        curr_id = sts.get_caller_identity()["Account"]
-        session = boto3.Session() if account_id == curr_id else get_assumed_session(account_id)
-
+    # Session Setup
+    sts = boto3.client("sts")
+    curr_id = sts.get_caller_identity()["Account"]
+    if account_id == curr_id:
+        session = boto3.Session()
+    else:
+        session = get_assumed_session(account_id)
         if not session:
-            log_info(f"failed Starting scan for account: {name} ({account_id}) - OrganizationAccountAccessRole missing",
-                     account_id)
+            log_warn(f"Skipping {name}: OrganizationAccountAccessRole missing or untrusted.", account_id)
             return []
 
-        account_results = []
-        # extend ensures we add the dictionaries to the list, not the list itself
-        account_results.extend(collect_s3_buckets(session, account_id))
+    account_results = []
+    account_errors = set()
 
-        account_regions = list_regions(session)
-        with ThreadPoolExecutor(max_workers=5) as executor:
-            futures = [executor.submit(scan_region_logic, session, r, account_id) for r in account_regions]
-            for f in as_completed(futures):
-                region_data = f.result()
-                if region_data:
-                    account_results.extend(region_data)
+    # S3 Scan (Global)
+    s3_data, s3_err = collect_s3_buckets(session, account_id)
+    if s3_data: account_results.extend(s3_data)
+    if s3_err: account_errors.add(s3_err)
 
-        log_info(f"Scan complete. Found {len(account_results)} resources.", account_id)
-        return account_results
-    except Exception:
-        return []
+    # Regional Scans
+    account_regions = list_regions(session)
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = [executor.submit(scan_region_logic, session, r, account_id) for r in account_regions]
+        for f in as_completed(futures):
+            r_data, r_errors = f.result()
+            # 1. Flatten Data: extend() prevents nested lists (Fixes CSV error)
+            if r_data:
+                account_results.extend(r_data)
+            # 2. Collect Errors: Add to set for deduplication (Fixes Log Spam)
+            if r_errors:
+                account_errors.update(r_errors)
 
+    # Summary Logging
+    if account_errors:
+        # Sort errors for clean reading
+        formatted_errors = ", ".join(sorted(account_errors))
+        log_warn(f"Partial scan. Missing permissions: {formatted_errors}", account_id)
 
-def scan_region_logic(session, region, account_id):
-    """Aggregates all regional findings into a single flat list."""
-    region_results = []
-    # Always use extend to merge lists into one flat list
-    region_results.extend(collect_ec2_instances(session, region, account_id))
-    region_results.extend(collect_ebs_volumes(session, region, account_id))
-    region_results.extend(collect_lambda_functions(session, region, account_id))
-    region_results.extend(collect_asg_as_ec2_equivalent(session, region, account_id))
-    return region_results
+    log_info(f"Scan complete. Found {len(account_results)} resources.", account_id)
+    return account_results
 
 
 def main():

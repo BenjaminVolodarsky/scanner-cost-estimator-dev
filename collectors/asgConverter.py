@@ -1,13 +1,13 @@
 # Inside collectors/asgConverter.py
 
-def collect_asg_as_ec2_equivalent(session, region, account_id="unknown"):
+def collect_asg_as_ec2_equivalent(session, region, account_id):
     client = session.client("autoscaling", region_name=region)
     results = []
-
+    error = None
     try:
-        paginator = client.get_paginator("describe_auto_scaling_groups")
+        paginator = client.get_paginator('describe_auto_scaling_groups')
         for page in paginator.paginate():
-            for asg in page.get("AutoScalingGroups", []):
+            for asg in page['AutoScalingGroups']:
                 tags = {t["Key"]: t["Value"] for t in asg.get("Tags", [])}
 
                 # Exclude if it's a K8s cluster
@@ -21,16 +21,12 @@ def collect_asg_as_ec2_equivalent(session, region, account_id="unknown"):
 
                 results.append({
                     "account_id": account_id,
-                    "resource": "ec2",
+                    "resource": "asg_ec2_equivalent",
                     "region": region,
-                    "type": "asg_target",
-                    "lifecycle": "asg",
-                    "asg_name": asg.get("AutoScalingGroupName")
+                    "name": asg['AutoScalingGroupName'],
+                    "instance_count": len(asg['Instances'])
                 })
     except Exception as e:
         if "AccessDenied" in str(e):
-            # Format: Service error in ID: (Code) message - check role permissions
-            print(
-                f"ASG error in {account_id}: (AccessDenied) when calling the DescribeAutoScalingGroups - please check OrganizationAccountAccessRole permissions in {account_id}.")
-        return []
-    return results
+            error = "autoscaling:DescribeAutoScalingGroups"
+        return results, error

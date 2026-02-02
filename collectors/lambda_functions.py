@@ -1,19 +1,20 @@
-def collect_lambda_functions(session, region, args=None, account_id="unknown"):
-    lambda_client = session.client("lambda", region_name=region)
+def collect_lambda_functions(session, region, account_id):
+    client = session.client("lambda", region_name=region)
     results = []
-
+    error = None
     try:
-        paginator = lambda_client.get_paginator("list_functions")
+        paginator = client.get_paginator('list_functions')
         for page in paginator.paginate():
-            for fn in page.get("Functions", []):
+            for func in page['Functions']:
                 results.append({
                     "account_id": account_id,
                     "resource": "lambda",
                     "region": region,
-                    "memory_mb": fn.get("MemorySize"),
-                    "code_size_mb": round(fn.get("CodeSize", 0) / 1024 / 1024, 3),
+                    "name": func.get('FunctionName'),
+                    "runtime": func.get('Runtime'),
+                    "memory_mb": func.get('MemorySize')
                 })
     except Exception as e:
-        print(f"Access denied for Lambda in {account_id}")
-        return []
-    return results
+        if "AccessDenied" in str(e):
+            error = "lambda:ListFunctions"
+    return results, error

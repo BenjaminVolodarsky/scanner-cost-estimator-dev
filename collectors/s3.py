@@ -7,6 +7,7 @@ def collect_s3_buckets(session, account_id="unknown"):
     # CloudWatch metrics for S3 are stored in us-east-1
     cw = session.client("cloudwatch", region_name="us-east-1")
     results = []
+    error = None
 
     try:
         buckets = s3.list_buckets().get("Buckets", [])
@@ -75,6 +76,7 @@ def collect_s3_buckets(session, account_id="unknown"):
                 "size_gb": size_gb,
                 "doc_num": doc_num_val  # Use the validated variable
             })
-    except Exception:
-        return []
-    return results
+    except Exception as e:
+        if "AccessDenied" in str(e):
+            error = "s3:ListBuckets"
+    return results, error
