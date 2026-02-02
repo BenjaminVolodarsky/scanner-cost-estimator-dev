@@ -12,6 +12,7 @@ def collect_ebs_volumes(session, region, args=None, account_id="unknown"):
                 "size_gb": v.get("Size"),
                 "type": v.get("VolumeType"),
             })
-    except:
+    except Exception as e:
+        print(f"⚠️ EBS error in {account_id} [{region}]: {e}")
         return []
     return volumes

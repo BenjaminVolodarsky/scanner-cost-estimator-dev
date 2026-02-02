@@ -27,6 +27,7 @@ def collect_asg_as_ec2_equivalent(session, region, account_id="unknown"):
                     "lifecycle": "asg",
                     "asg_name": asg.get("AutoScalingGroupName")
                 })
-    except Exception:
+    except Exception as e:
+        print(f"⚠️ ASG error in {account_id} [{region}]: {e}")
         return []
     return results

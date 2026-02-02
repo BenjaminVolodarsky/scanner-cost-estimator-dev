@@ -24,6 +24,7 @@ def collect_ec2_instances(session, region, args=None, account_id="unknown"):
                         "type": inst.get("InstanceType"),
                         "state": state,
                     })
-    except Exception:
+    except Exception as e:
+        print(f"⚠️ EC2 error in {account_id} [{region}]: {e}")
         return []
     return result
