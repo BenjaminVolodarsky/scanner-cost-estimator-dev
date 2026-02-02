@@ -1,3 +1,5 @@
+import boto3
+
 def collect_lambda_functions(session, region, account_id):
     client = session.client("lambda", region_name=region)
     results = []

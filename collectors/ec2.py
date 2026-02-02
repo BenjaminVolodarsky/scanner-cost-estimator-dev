@@ -1,5 +1,4 @@
-from botocore.exceptions import ClientError
-
+import boto3
 
 def collect_ec2_instances(session, region, account_id):
     client = session.client("ec2", region_name=region)
@@ -10,8 +9,8 @@ def collect_ec2_instances(session, region, account_id):
         for page in paginator.paginate():
             for reservation in page['Reservations']:
                 for instance in reservation['Instances']:
-                    # Filter K8s if needed
                     tags = {t['Key']: t['Value'] for t in instance.get('Tags', [])}
+                    # Filter out EKS/K8s nodes to avoid double counting
                     if any(k in str(tags).lower() for k in ['eks', 'k8s', 'kubernetes']):
                         continue
 

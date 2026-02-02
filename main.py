@@ -1,6 +1,9 @@
 import warnings
 
-warnings.filterwarnings("ignore", category=DeprecationWarning, module="boto3")
+# Filter specific Boto3/Python 3.9 deprecation warnings by message content
+warnings.filterwarnings("ignore", message=".*Boto3 will no longer support Python 3.9.*")
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
 import logging
 import sys
 import boto3
@@ -15,6 +18,7 @@ from collectors.s3 import collect_s3_buckets
 from collectors.lambda_functions import collect_lambda_functions
 from collectors.asgConverter import collect_asg_as_ec2_equivalent
 
+# Organized Logging Configuration
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - [%(account_id)s] %(message)s',
@@ -32,24 +36,28 @@ def log_warn(msg, account_id="SYSTEM"):
 
 
 def is_management_account():
+    """Detects if running from the organization management account."""
     try:
         org = boto3.client('organizations')
         org_info = org.describe_organization()['Organization']
         sts = boto3.client('sts')
         current_id = sts.get_caller_identity()['Account']
+        # Check both MasterAccountId (old) and ManagementAccountId (new)
         return current_id == org_info.get('MasterAccountId') or current_id == org_info.get('ManagementAccountId')
     except Exception:
         return False
 
 
 def get_accounts():
+    """Fetches active member accounts from the organization."""
     try:
         org = boto3.client("organizations")
         accounts = []
         paginator = org.get_paginator("list_accounts")
         for page in paginator.paginate():
             for acc in page.get("Accounts", []):
-                if acc.get("Status") == "ACTIVE":
+                state = acc.get("State") or acc.get("Status")
+                if state == "ACTIVE":
                     accounts.append({"id": acc["Id"], "name": acc["Name"]})
         return accounts
     except Exception:
@@ -58,6 +66,7 @@ def get_accounts():
 
 
 def get_assumed_session(account_id):
+    """Assumes role in member account."""
     sts = boto3.client("sts")
     role_arn = f"arn:aws:iam::{account_id}:role/OrganizationAccountAccessRole"
     try:
@@ -74,14 +83,21 @@ def get_assumed_session(account_id):
 
 def scan_region_logic(session, region, account_id):
     """
-    Returns a tuple: (list_of_resources, list_of_permission_errors)
+    Aggregates all regional findings into a single flat list.
+    Returns: (list_of_resources, list_of_permission_errors)
     """
     region_results = []
     region_errors = set()
 
     # Call collectors. Each MUST return (data_list, error_str_or_None)
-    for collector in [collect_ec2_instances, collect_ebs_volumes, collect_lambda_functions,
-                      collect_asg_as_ec2_equivalent]:
+    collectors = [
+        collect_ec2_instances,
+        collect_ebs_volumes,
+        collect_lambda_functions,
+        collect_asg_as_ec2_equivalent
+    ]
+
+    for collector in collectors:
         data, error = collector(session, region, account_id)
         if data:
             region_results.extend(data)
@@ -95,6 +111,7 @@ def scan_account(account_info, is_mgmt_node=False):
     account_id = account_info["id"]
     name = account_info["name"]
     suffix = " [Management Account]" if is_mgmt_node else ""
+
     log_info(f"Starting scan for account: {name} ({account_id}){suffix}", account_id)
 
     # Session Setup
@@ -122,16 +139,13 @@ def scan_account(account_info, is_mgmt_node=False):
         futures = [executor.submit(scan_region_logic, session, r, account_id) for r in account_regions]
         for f in as_completed(futures):
             r_data, r_errors = f.result()
-            # 1. Flatten Data: extend() prevents nested lists (Fixes CSV error)
             if r_data:
                 account_results.extend(r_data)
-            # 2. Collect Errors: Add to set for deduplication (Fixes Log Spam)
             if r_errors:
                 account_errors.update(r_errors)
 
-    # Summary Logging
+    # Summary Logging for Permissions
     if account_errors:
-        # Sort errors for clean reading
         formatted_errors = ", ".join(sorted(account_errors))
         log_warn(f"Partial scan. Missing permissions: {formatted_errors}", account_id)
 
@@ -147,16 +161,40 @@ def main():
     all_results = []
     accounts = get_accounts() if is_mgmt else None
 
+    # Determine list of accounts to scan
+    scan_list = []
     if accounts:
-        for acc in accounts:
-            sts = boto3.client("sts")
-            is_node = (acc["id"] == sts.get_caller_identity()["Account"])
-            all_results.extend(scan_account(acc, is_node))
+        scan_list = accounts
     else:
+        # Local fallback
         sts = boto3.client("sts")
         curr_id = sts.get_caller_identity()["Account"]
-        all_results.extend(scan_account({"id": curr_id, "name": "Local-Account"}, is_mgmt))
+        scan_list = [{"id": curr_id, "name": "Local-Account"}]
 
+    # Tracking metrics
+    total_accounts = len(scan_list)
+    success_count = 0
+
+    # Execution Loop
+    for acc in scan_list:
+        print("")  # Line break between accounts for visibility
+
+        try:
+            sts = boto3.client("sts")
+            curr_id = sts.get_caller_identity()["Account"]
+            is_node = (acc["id"] == curr_id)
+
+            # Execute Scan
+            results = scan_account(acc, is_node)
+
+            all_results.extend(results)
+            success_count += 1
+        except Exception as e:
+            log_warn(f"Failed to scan {acc['name']}: {str(e)}", acc['id'])
+
+    # Final Summary
+    print("")  # Final line break
+    log_info(f"Scanned {success_count}/{total_accounts} accounts successfully.", "SYSTEM")
     write_output(all_results)
 
 
