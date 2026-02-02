@@ -12,6 +12,10 @@ def collect_asg_as_ec2_equivalent(session, region, args=None, account_id="unknow
 
                 # Convert tags list to a searchable dict
                 tags = {t["Key"]: t["Value"] for t in asg.get("Tags", [])}
+                desired_capacity = asg.get("DesiredCapacity")
+
+                if desired_capacity == 0:
+                    continue
 
                 # Check for K8s/EKS tags to exclude clusters
                 is_k8s = any(x in str(tags).lower() for x in ["eks", "k8", "kubernetes"])

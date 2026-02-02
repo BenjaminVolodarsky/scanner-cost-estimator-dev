@@ -18,7 +18,7 @@ def collect_ec2_instances(session, region, args=None, account_id="unknown"):
                         continue
 
                     result.append({
-                        "account_id": account_id,  # Added account identifier
+                        "account_id": account_id,
                         "resource": "ec2",
                         "region": region,
                         "type": inst.get("InstanceType"),
