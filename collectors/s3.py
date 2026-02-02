@@ -45,6 +45,26 @@ def collect_s3_buckets(session, account_id="unknown"):
             except:
                 pass  # Default to 0 if metrics are inaccessible
 
+            doc_num = 0
+            try:
+                doc_num = cw.get_metric_statistics(
+                    Namespace='AWS/S3',
+                    MetricName='NumberOfObjects',
+                    Dimensions=[
+                        {'Name': 'BucketName', 'Value': name},
+                        {'Name': 'StorageType', 'Value': 'AllStorageTypes'}
+                    ],
+                    Statistics=['Average'],
+                    Period=86400,  # 24 hours in seconds
+                    StartTime=now - timedelta(days=2),
+                    EndTime=now
+                )
+
+                if doc_num['Datapoints']:
+                    doc_num = doc_num['Datapoints'][0]['Average']
+
+            except:
+                pass
 
             results.append({
                 "account_id": account_id,
@@ -52,6 +72,7 @@ def collect_s3_buckets(session, account_id="unknown"):
                 "bucket_name": name,
                 "region": loc,
                 "size_gb": size_gb,
+                "doc_num": doc_num
             })
     except Exception:
         return []
