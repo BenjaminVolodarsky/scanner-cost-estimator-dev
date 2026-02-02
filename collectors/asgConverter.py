@@ -28,6 +28,9 @@ def collect_asg_as_ec2_equivalent(session, region, account_id="unknown"):
                     "asg_name": asg.get("AutoScalingGroupName")
                 })
     except Exception as e:
-        print(f"⚠️ ASG error in {account_id} [{region}]: {e}")
+        if "AccessDenied" in str(e):
+            # Format: Service error in ID: (Code) message - check role permissions
+            print(
+                f"ASG error in {account_id}: (AccessDenied) when calling the DescribeAutoScalingGroups - please check OrganizationAccountAccessRole permissions in {account_id}.")
         return []
     return results
