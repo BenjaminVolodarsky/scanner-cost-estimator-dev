@@ -1,5 +1,3 @@
-import boto3
-
 def collect_ec2_instances(session, region, account_id):
     client = session.client("ec2", region_name=region)
     results = []
@@ -14,13 +12,15 @@ def collect_ec2_instances(session, region, account_id):
                     if any(k in str(tags).lower() for k in ['eks', 'k8s', 'kubernetes']):
                         continue
 
+                    if instance['State']['Name'] != 'running':
+                        continue
+
                     results.append({
                         "account_id": account_id,
                         "resource": "ec2",
                         "region": region,
                         "id": instance['InstanceId'],
                         "type": instance['InstanceType'],
-                        "state": instance['State']['Name']
                     })
     except Exception as e:
         if "AccessDenied" in str(e) or "UnauthorizedOperation" in str(e):

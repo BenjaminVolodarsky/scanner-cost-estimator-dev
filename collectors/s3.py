@@ -1,10 +1,8 @@
-import boto3
 from datetime import datetime, timedelta
 
 
 def collect_s3_buckets(session, account_id="unknown"):
     s3 = session.client("s3")
-    # CloudWatch metrics for S3 are stored in us-east-1
     cw = session.client("cloudwatch", region_name="us-east-1")
     results = []
     error = None
@@ -16,14 +14,11 @@ def collect_s3_buckets(session, account_id="unknown"):
         for bucket in buckets:
             name = bucket["Name"]
 
-            # 1. Get Bucket Location
             try:
                 loc = s3.get_bucket_location(Bucket=name).get("LocationConstraint") or "us-east-1"
             except:
                 loc = "unknown"
 
-            # 2. Query CloudWatch for Bucket Size
-            # We look back 2 days to ensure we find a daily metric point
             size_gb = 0
             try:
                 size = cw.get_metric_statistics(
@@ -34,19 +29,18 @@ def collect_s3_buckets(session, account_id="unknown"):
                         {'Name': 'StorageType', 'Value': 'StandardStorage'}
                     ],
                     Statistics=['Average'],
-                    Period=86400,  # 24 hours in seconds
+                    Period=86400,
                     StartTime=now - timedelta(days=2),
                     EndTime=now
                 )
 
                 if size['Datapoints']:
-                    # Convert Bytes to GB
                     bytes_val = size['Datapoints'][0]['Average']
                     size_gb = round(bytes_val / (1024 ** 3), 2)
             except:
-                pass  # Default to 0 if metrics are inaccessible
+                pass
 
-            doc_num_val = 0  # Initialize with a default value
+            doc_num_val = 0
             try:
                 response = cw.get_metric_statistics(
                     Namespace='AWS/S3',
@@ -62,7 +56,6 @@ def collect_s3_buckets(session, account_id="unknown"):
                 )
 
                 if response.get('Datapoints'):
-                    # Sort by timestamp to get the most recent point if multiple exist
                     sorted_datapoints = sorted(response['Datapoints'], key=lambda x: x['Timestamp'], reverse=True)
                     doc_num_val = int(sorted_datapoints[0]['Average'])
             except Exception as e:
@@ -74,7 +67,7 @@ def collect_s3_buckets(session, account_id="unknown"):
                 "bucket_name": name,
                 "region": loc,
                 "size_gb": size_gb,
-                "doc_num": doc_num_val  # Use the validated variable
+                "doc_num": doc_num_val
             })
     except Exception as e:
         if "AccessDenied" in str(e):

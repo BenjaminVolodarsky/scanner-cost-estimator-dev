@@ -1,6 +1,5 @@
 import warnings
 
-# Filter specific Boto3/Python 3.9 deprecation warnings
 warnings.filterwarnings("ignore", message=".*Boto3 will no longer support Python 3.9.*")
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
@@ -11,14 +10,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from utils.regions import list_regions
 from output.writer import write_output
 
-# Import collectors
 from collectors.ec2 import collect_ec2_instances
 from collectors.ebs import collect_ebs_volumes
 from collectors.s3 import collect_s3_buckets
 from collectors.lambda_functions import collect_lambda_functions
 from collectors.asgConverter import collect_asg_as_ec2_equivalent
 
-# Organized Logging Configuration
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - [%(account_id)s] %(message)s',
@@ -89,7 +86,6 @@ def scan_region_logic(session, region, account_id):
     region_results = []
     region_errors = set()
 
-    # Call collectors. Each MUST return (data_list, error_str_or_None)
     collectors = [
         collect_ec2_instances,
         collect_ebs_volumes,
@@ -114,7 +110,6 @@ def scan_account(account_info, is_mgmt_node=False):
 
     log_info(f"Starting scan for account: {name} ({account_id}){suffix}", account_id)
 
-    # Session Setup
     sts = boto3.client("sts")
     curr_id = sts.get_caller_identity()["Account"]
     if account_id == curr_id:
@@ -147,7 +142,6 @@ def scan_account(account_info, is_mgmt_node=False):
             if r_errors:
                 account_errors.update(r_errors)
 
-    # Summary Logging for Permissions
     if account_errors:
         formatted_errors = ", ".join(sorted(account_errors))
         log_warn(f"Partial scan. Missing permissions: {formatted_errors}", account_id)
@@ -164,31 +158,26 @@ def main():
     all_results = []
     accounts = get_accounts() if is_mgmt else None
 
-    # Determine list of accounts to scan
     scan_list = []
     if accounts:
         scan_list = accounts
     else:
-        # Local fallback
         sts = boto3.client("sts")
         curr_id = sts.get_caller_identity()["Account"]
         scan_list = [{"id": curr_id, "name": "Local-Account"}]
 
-    # Tracking metrics
     total_accounts = len(scan_list)
     full_success_count = 0
     partial_count = 0
 
-    # Execution Loop
     for acc in scan_list:
-        print("")  # Line break between accounts for visibility
+        print("")
 
         try:
             sts = boto3.client("sts")
             curr_id = sts.get_caller_identity()["Account"]
             is_node = (acc["id"] == curr_id)
 
-            # Execute Scan
             results = scan_account(acc, is_node)
             all_results.extend(results)
 
@@ -200,13 +189,11 @@ def main():
         except Exception as e:
             log_warn(f"Failed to scan {acc['name']}: {str(e)}", acc['id'])
 
-    # Final Summary
-    print("")  # Final line break
+    print("")
     log_info(
         f"Summary: {full_success_count} full scans, {partial_count} partial/empty scans out of {total_accounts} total.",
         "SYSTEM")
 
-    # WRITE OUTPUT (This was missing!)
     write_output(all_results)
 
 

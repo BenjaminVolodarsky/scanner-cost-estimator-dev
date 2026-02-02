@@ -1,5 +1,3 @@
-import boto3
-
 def collect_lambda_functions(session, region, account_id):
     client = session.client("lambda", region_name=region)
     results = []
@@ -13,7 +11,6 @@ def collect_lambda_functions(session, region, account_id):
                     "resource": "lambda",
                     "region": region,
                     "name": func.get('FunctionName'),
-                    "runtime": func.get('Runtime'),
                     "memory_mb": func.get('MemorySize')
                 })
     except Exception as e:

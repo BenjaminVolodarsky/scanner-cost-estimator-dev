@@ -1,5 +1,3 @@
-import boto3
-
 def collect_ebs_volumes(session, region, account_id):
     client = session.client("ec2", region_name=region)
     results = []
