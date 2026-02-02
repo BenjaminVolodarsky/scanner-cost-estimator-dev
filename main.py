@@ -68,10 +68,10 @@ def get_assumed_session(account_id, role_name="OrganizationAccountAccessRole"):
 
 
 def scan_region_logic(session, region, account_id):
-    """Executes all regional collectors and returns a single combined list."""
     region_results = []
 
-    # Each collector is called with the current session and account ID
+    # Use .extend() to add the elements of the returned list,
+    # not the list itself as a single item.
     region_results.extend(collect_ec2_instances(session, region, account_id))
     region_results.extend(collect_asg_as_ec2_equivalent(session, region, account_id))
     region_results.extend(collect_ebs_volumes(session, region, account_id))

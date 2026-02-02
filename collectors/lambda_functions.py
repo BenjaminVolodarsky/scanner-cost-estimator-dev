@@ -14,6 +14,6 @@ def collect_lambda_functions(session, region, args=None, account_id="unknown"):
                     "code_size_mb": round(fn.get("CodeSize", 0) / 1024 / 1024, 3),
                 })
     except Exception as e:
-        print(f"⚠️ Lambda error in {account_id} [{region}]: {e}")
+        print(f"Access denied for Lambda in {account_id}")
         return []
     return results
