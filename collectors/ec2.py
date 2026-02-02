@@ -22,8 +22,7 @@ def collect_ec2_instances(session, region, args=None, account_id="unknown"):
                         "resource": "ec2",
                         "region": region,
                         "type": inst.get("InstanceType"),
-                        "lifecycle": inst.get("InstanceLifecycle", "on-demand"),
-                        "state": state
+                        "state": state,
                     })
     except Exception:
         return []
