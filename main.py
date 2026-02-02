@@ -18,19 +18,15 @@ from collectors.asgConverter import collect_asg_as_ec2_equivalent
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - [%(account_id)s] %(message)s',
-    handlers=[
-        logging.FileHandler("scanner_debug.log"),
-        logging.StreamHandler(sys.stdout)
-    ]
+    handlers=[logging.StreamHandler(sys.stdout)]
 )
 logger = logging.getLogger("CloudScanner")
 
-# Helper to log with account context
-def log_info(msg, account_id="N/A"):
+def log_info(msg, account_id="SYSTEM"):
     logger.info(msg, extra={'account_id': account_id})
 
-def log_error(msg, account_id="N/A"):
-    logger.error(msg, extra={'account_id': account_id})
+def log_warn(msg, account_id="SYSTEM"):
+    logger.warning(msg, extra={'account_id': account_id})
 
 def get_accounts():
     """Always fetches all active accounts using 2026-ready state checks."""
@@ -66,10 +62,10 @@ def get_assumed_session(account_id, role_name="OrganizationAccountAccessRole"):
 def scan_account(account_info):
     account_id = account_info["id"]
     account_name = account_info.get("name", "Unknown")
-    log_info(f"🚀 Starting scan for {account_name}", account_id)
+
+    log_info(f"Starting scan for account: {account_name} ({account_id})", account_id)
 
     try:
-        # 1. Establish the Session first
         sts_client = boto3.client("sts")
         current_account_id = sts_client.get_caller_identity()["Account"]
 
@@ -79,45 +75,54 @@ def scan_account(account_info):
             session = get_assumed_session(account_id)
 
         if not session:
-            log_error("❌ Failed to create session.", account_id)
+            log_warn("Access denied: Could not assume role. Verify trust relationship.", account_id)
             return []
 
-        # 2. Get account-specific regions using the new session
-        # This resolves the 'AuthFailure' errors for disabled regions
+        # Get enabled regions for this account
         account_regions = list_regions(session)
-
         account_results = []
+
+        # Track permission issues silently
+        permission_gaps = set()
+
+        # Global S3 Scan
         account_results += collect_s3_buckets(session, account_id)
 
         with ThreadPoolExecutor(max_workers=5) as executor:
-            # Pass account_regions and the valid session to threads
             futures = [executor.submit(scan_region_logic, session, r, account_id) for r in account_regions]
             for f in as_completed(futures):
-                account_results += f.result()
+                res, gaps = f.result()  # Collectors now return (data, gaps)
+                account_results += res
+                permission_gaps.update(gaps)
 
+        if permission_gaps:
+            log_warn(f"Limited visibility. Missing policies: {', '.join(sorted(permission_gaps))}", account_id)
+
+        log_info(f"Scan complete. Found {len(account_results)} resources.", account_id)
         return account_results
 
     except Exception as e:
-        log_error(f"💥 Unexpected error: {str(e)}", account_id)
         return []
 
+
 def scan_region_logic(session, region, account_id):
-    """Orchestrates all regional collection for a specific account."""
     region_results = []
+    gaps = []
 
-    # 1. Collect EC2 Instances
-    region_results += collect_ec2_instances(session, region, account_id=account_id)
+    # Each collector now handles AccessDenied gracefully and reports it back
+    res_ec2, gap_ec2 = collect_ec2_instances(session, region, account_id)
+    region_results += res_ec2
+    if gap_ec2: gaps.append(gap_ec2)
 
-    # 2. Collect ASGs
-    region_results += collect_asg_as_ec2_equivalent(session, region, account_id=account_id)
+    res_ebs, gap_ebs = collect_ebs_volumes(session, region, account_id)
+    region_results += res_ebs
+    if gap_ebs: gaps.append(gap_ebs)
 
-    # 3. Collect EBS Volumes
-    region_results += collect_ebs_volumes(session, region, account_id=account_id)
+    res_lam, gap_lam = collect_lambda_functions(session, region, account_id)
+    region_results += res_lam
+    if gap_lam: gaps.append(gap_lam)
 
-    # 4. Collect Lambda Functions
-    region_results += collect_lambda_functions(session, region, account_id=account_id)
-
-    return region_results
+    return region_results, gaps
 
 
 def main():
