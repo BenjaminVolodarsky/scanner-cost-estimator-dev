@@ -155,16 +155,11 @@ def main():
 
     scan_list = []
 
-    # MODE 1: Manual List
+    # MODE 1: Manual List (Strict)
     if args.accounts:
         ids = [x.strip() for x in args.accounts.split(",") if x.strip()]
         scan_list = [{"id": aid, "name": f"Manual-{aid}"} for aid in ids]
-
-        # FIX: Ensure Runner Account is included
-        if runner_id not in ids:
-            scan_list.append({"id": runner_id, "name": "Local-Account"})
-
-        log_info(f"Manual mode enabled. Scanning {len(scan_list)} accounts (including local).", "SYSTEM")
+        log_info(f"Manual mode enabled. Scanning {len(scan_list)} specific accounts.", "SYSTEM")
 
     # MODE 2: Auto-Discovery
     else:
