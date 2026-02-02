@@ -37,20 +37,11 @@ def log_warn(msg, account_id="SYSTEM"):
     logger.warning(msg, extra={'account_id': account_id})
 
 
-def is_management_account():
-    """Detects if running from the organization management account."""
-    try:
-        org = boto3.client('organizations')
-        org_info = org.describe_organization()['Organization']
-        sts = boto3.client('sts')
-        current_id = sts.get_caller_identity()['Account']
-        return current_id == org_info.get('MasterAccountId') or current_id == org_info.get('ManagementAccountId')
-    except Exception:
-        return False
-
-
 def get_accounts():
-    """Fetches active member accounts from the organization."""
+    """
+    Fetches active member accounts from the organization.
+    Returns None if the caller lacks permissions (i.e., is a standard member).
+    """
     try:
         org = boto3.client("organizations")
         accounts = []
@@ -62,7 +53,6 @@ def get_accounts():
                     accounts.append({"id": acc["Id"], "name": acc["Name"]})
         return accounts
     except Exception:
-        log_info("Running from member account or missing organizations:ListAccounts permission", "SYSTEM")
         return None
 
 
@@ -83,10 +73,7 @@ def get_assumed_session(account_id, role_name):
 
 
 def scan_region_logic(session, region, account_id):
-    """
-    Aggregates all regional findings into a single flat list.
-    Returns: (list_of_resources, list_of_permission_errors)
-    """
+    """Aggregates all regional findings into a single flat list."""
     region_results = []
     region_errors = set()
 
@@ -107,23 +94,20 @@ def scan_region_logic(session, region, account_id):
     return region_results, list(region_errors)
 
 
-def scan_account(account_info, role_name, is_mgmt_node=False):
+def scan_account(account_info, role_name, is_runner_node=False):
     account_id = account_info["id"]
     name = account_info["name"]
-    suffix = " [Management Account]" if is_mgmt_node else ""
+    suffix = " [Runner Account]" if is_runner_node else ""
 
     log_info(f"Starting scan for account: {name} ({account_id}){suffix}", account_id)
 
     # Session Setup
-    sts = boto3.client("sts")
-    curr_id = sts.get_caller_identity()["Account"]
-    if account_id == curr_id:
+    if is_runner_node:
         session = boto3.Session()
     else:
-        # Pass the custom role name here
         session = get_assumed_session(account_id, role_name)
         if not session:
-            log_warn(f"Skipping {name}: {role_name} missing or untrusted.", account_id)
+            log_warn(f"Skipping {name}: Role '{role_name}' cannot be assumed.", account_id)
             return []
 
     account_results = []
@@ -148,7 +132,6 @@ def scan_account(account_info, role_name, is_mgmt_node=False):
             if r_errors:
                 account_errors.update(r_errors)
 
-    # Summary Logging for Permissions
     if account_errors:
         formatted_errors = ", ".join(sorted(account_errors))
         log_warn(f"Partial scan. Missing permissions: {formatted_errors}", account_id)
@@ -158,62 +141,51 @@ def scan_account(account_info, role_name, is_mgmt_node=False):
 
 
 def main():
-    # Argument Parsing
     parser = argparse.ArgumentParser(description="Cloud Scanner & Cost Estimator")
     parser.add_argument("--role", type=str, default="OrganizationAccountAccessRole",
-                        help="The IAM Role name to assume in member accounts (default: OrganizationAccountAccessRole)")
+                        help="The IAM Role name to assume in member accounts.")
     args = parser.parse_args()
 
-    is_mgmt = is_management_account()
-    if not is_mgmt:
-        log_info("Running from a Member Account. Multi-account discovery is disabled.", "SYSTEM")
+    # 1. Capability Detection
+    accounts = get_accounts()
 
-    all_results = []
-    accounts = get_accounts() if is_mgmt else None
-
-    # Determine list of accounts to scan
     scan_list = []
     if accounts:
+        log_info(f"Organization access detected. Found {len(accounts)} active accounts.", "SYSTEM")
         scan_list = accounts
     else:
-        # Local fallback
+        log_info("Organization access unavailable. Defaulting to single-account scan.", "SYSTEM")
         sts = boto3.client("sts")
         curr_id = sts.get_caller_identity()["Account"]
         scan_list = [{"id": curr_id, "name": "Local-Account"}]
 
-    # Tracking metrics
+    sts = boto3.client("sts")
+    runner_id = sts.get_caller_identity()["Account"]
+
+    all_results = []
     total_accounts = len(scan_list)
     full_success_count = 0
     partial_count = 0
 
-    # Execution Loop
     for acc in scan_list:
-        print("")  # Line break between accounts for visibility
-
+        print("")
         try:
-            sts = boto3.client("sts")
-            curr_id = sts.get_caller_identity()["Account"]
-            is_node = (acc["id"] == curr_id)
-
-            # Execute Scan with the role argument
-            results = scan_account(acc, args.role, is_node)
+            is_runner = (acc["id"] == runner_id)
+            results = scan_account(acc, args.role, is_runner)
             all_results.extend(results)
 
             if len(results) == 0:
                 partial_count += 1
             else:
                 full_success_count += 1
-
         except Exception as e:
             log_warn(f"Failed to scan {acc['name']}: {str(e)}", acc['id'])
 
-    # Final Summary
-    print("")  # Final line break
+    print("")
     log_info(
         f"Summary: {full_success_count} full scans, {partial_count} partial/empty scans out of {total_accounts} total.",
         "SYSTEM")
 
-    # WRITE OUTPUT
     write_output(all_results)
 
 

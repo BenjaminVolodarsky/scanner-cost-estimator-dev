@@ -37,7 +37,7 @@ Run the script:
 * To specify a custom cross-account role name:
 
 ```bash
-./upwind --role MyCustomRoleName
+./upwind --role CustomRoleName
 ```
 * Management Account should Scan all active member accounts in the Organization, if given the right permissions and policies as outlined in the Permissions section.
 
