@@ -114,7 +114,6 @@ def scan_account(account_info, role_name, is_runner_node=False):
     account_results = []
     account_errors = set()
 
-    # S3 Scan (Global)
     try:
         s3_data, s3_err = collect_s3_buckets(session, account_id)
         if s3_data: account_results.extend(s3_data)
@@ -122,7 +121,6 @@ def scan_account(account_info, role_name, is_runner_node=False):
     except Exception:
         pass
 
-    # Regional Scans
     account_regions = list_regions(session)
     with ThreadPoolExecutor(max_workers=5) as executor:
         futures = [executor.submit(scan_region_logic, session, r, account_id) for r in account_regions]
@@ -155,13 +153,11 @@ def main():
 
     scan_list = []
 
-    # MODE 1: Manual List (Highest Priority)
     if args.accounts:
         ids = [x.strip() for x in args.accounts.split(",") if x.strip()]
         scan_list = [{"id": aid, "name": f"Manual-{aid}"} for aid in ids]
         log_info(f"Manual mode enabled. Scanning {len(scan_list)} specific accounts.", "SYSTEM")
 
-    # MODE 2: Auto-Discovery
     else:
         accounts = get_accounts()
         if accounts:
