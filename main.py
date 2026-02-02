@@ -62,46 +62,30 @@ def get_assumed_session(account_id, role_name="OrganizationAccountAccessRole"):
 def scan_account(account_info):
     account_id = account_info["id"]
     account_name = account_info.get("name", "Unknown")
-
-    log_info(f"Starting scan for account: {account_name} ({account_id})", account_id)
+    log_info(f"Scanning account: {account_name} ({account_id})", account_id)
 
     try:
-        sts_client = boto3.client("sts")
-        current_account_id = sts_client.get_caller_identity()["Account"]
+        session = get_session_for_account(account_id)  # Assume your session logic is here
+        if not session: return []
 
-        if account_id == current_account_id:
-            session = boto3.Session()
-        else:
-            session = get_assumed_session(account_id)
-
-        if not session:
-            log_warn("Access denied: Could not assume role. Verify trust relationship.", account_id)
-            return []
-
-        # Get enabled regions for this account
         account_regions = list_regions(session)
         account_results = []
-
-        # Track permission issues silently
         permission_gaps = set()
 
-        # Global S3 Scan
-        account_results += collect_s3_buckets(session, account_id)
-
         with ThreadPoolExecutor(max_workers=5) as executor:
+            # IMPORTANT: Pass account_id here
             futures = [executor.submit(scan_region_logic, session, r, account_id) for r in account_regions]
             for f in as_completed(futures):
-                res, gaps = f.result()  # Collectors now return (data, gaps)
-                account_results += res
-                permission_gaps.update(gaps)
+                # Unpack the result (data, gaps)
+                region_data, region_gaps = f.result()
+                account_results += region_data
+                permission_gaps.update(region_gaps)
 
         if permission_gaps:
-            log_warn(f"Limited visibility. Missing policies: {', '.join(sorted(permission_gaps))}", account_id)
+            log_warn(f"Missing permissions: {', '.join(sorted(permission_gaps))}", account_id)
 
-        log_info(f"Scan complete. Found {len(account_results)} resources.", account_id)
         return account_results
-
-    except Exception as e:
+    except Exception:
         return []
 
 

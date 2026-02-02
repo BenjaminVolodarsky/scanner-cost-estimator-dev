@@ -1,18 +1,25 @@
-def collect_ebs_volumes(session, region, args=None, account_id="unknown"):
-    ec2 = session.client("ec2", region_name=region)
-    volumes = []
+# collectors/ebs.py
+from botocore.exceptions import ClientError
+
+
+def collect_ebs_volumes(session, region, account_id="unknown"):
+    client = session.client("ec2", region_name=region)
+    results = []
+    gap = None
 
     try:
-        resp = ec2.describe_volumes()
-        for v in resp.get("Volumes", []):
-            volumes.append({
+        response = client.describe_volumes()
+        for vol in response.get('Volumes', []):
+            results.append({
                 "account_id": account_id,
                 "resource": "ebs",
+                "volume_id": vol['VolumeId'],
                 "region": region,
-                "size_gb": v.get("Size"),
-                "type": v.get("VolumeType"),
+                "size_gb": vol['Size']
             })
-    except Exception as e:
-        print(f"⚠️ EBS error in {account_id} [{region}]: {e}")
-        return []
-    return volumes
+    except ClientError as e:
+        # Check for permission errors specifically
+        if e.response['Error']['Code'] in ['UnauthorizedOperation', 'AccessDenied']:
+            gap = "ec2:DescribeVolumes"
+
+    return results, gap
