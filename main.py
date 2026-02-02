@@ -1,6 +1,7 @@
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="boto3")
-
+import logging
+import sys
 import boto3
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from utils.regions import list_regions
@@ -13,6 +14,23 @@ from collectors.ebs import collect_ebs_volumes
 from collectors.s3 import collect_s3_buckets
 from collectors.lambda_functions import collect_lambda_functions
 from collectors.asgConverter import collect_asg_as_ec2_equivalent
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - [%(account_id)s] %(message)s',
+    handlers=[
+        logging.FileHandler("scanner_debug.log"),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+logger = logging.getLogger("CloudScanner")
+
+# Helper to log with account context
+def log_info(msg, account_id="N/A"):
+    logger.info(msg, extra={'account_id': account_id})
+
+def log_error(msg, account_id="N/A"):
+    logger.error(msg, extra={'account_id': account_id})
 
 def get_accounts():
     """Always fetches all active accounts using 2026-ready state checks."""
@@ -44,27 +62,49 @@ def get_assumed_session(account_id, role_name="OrganizationAccountAccessRole"):
     except Exception:
         return None
 
+
 def scan_account(account_info, regions):
     account_id = account_info["id"]
-    sts_client = boto3.client("sts")
-    current_account_id = sts_client.get_caller_identity()["Account"]
+    account_name = account_info.get("name", "Unknown")
 
-    if account_id == current_account_id:
-        session = boto3.Session()
-    else:
-        session = get_assumed_session(account_id)
+    log_info(f"🚀 Starting scan for {account_name}", account_id)
 
-    if not session:
+    try:
+        # Identify current caller to decide if we need to AssumeRole
+        sts_client = boto3.client("sts")
+        current_identity = sts_client.get_caller_identity()
+        current_account_id = current_identity["Account"]
+
+        if account_id == current_account_id:
+            log_info("🏠 Using local session (no AssumeRole needed)", account_id)
+            session = boto3.Session()
+        else:
+            log_info(f"🔑 Attempting AssumeRole into {account_id}", account_id)
+            session = get_assumed_session(account_id)
+
+        if not session:
+            log_error("❌ Failed to create session. Skipping account.", account_id)
+            return []
+
+        # Double-check identity within the new session
+        verified_id = session.client("sts").get_caller_identity()["Account"]
+        log_info(f"✅ Session verified for account: {verified_id}", verified_id)
+
+        # MOVED INSIDE TRY: Start collecting data
+        account_results = []
+        account_results += collect_s3_buckets(session, account_id)
+
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            futures = [executor.submit(scan_region_logic, session, r, account_id) for r in regions]
+            for f in as_completed(futures):
+                account_results += f.result()
+
+        return account_results  # Success return
+
+    except Exception as e:
+        log_error(f"💥 Unexpected error in scan_account: {str(e)}", account_id)
         return []
 
-    account_results = []
-    account_results += collect_s3_buckets(session, account_id)
-
-    with ThreadPoolExecutor(max_workers=5) as executor:
-        futures = [executor.submit(scan_region_logic, session, r, account_id) for r in regions]
-        for f in as_completed(futures):
-            account_results += f.result()
-    return account_results
 
 def scan_region_logic(session, region, account_id):
     region_results = []

@@ -6,9 +6,9 @@ import os
 def write_output(data, json_filename="output.json", csv_filename="output.csv"):
     os.makedirs("output", exist_ok=True)
 
-    # 1. Always save JSON
+    # 1. Fixed with default=str to handle datetime objects
     with open(f"output/{json_filename}", "w") as f:
-        json.dump(data, f, indent=2)
+        json.dump(data, f, indent=2, default=str)
     print(f"\n✅ JSON saved → output/{json_filename}")
 
     # 2. Handle CSV logic
