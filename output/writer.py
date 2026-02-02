@@ -9,11 +9,11 @@ def write_output(data, json_filename="output.json", csv_filename="output.csv"):
     # 1. Fixed with default=str to handle datetime objects
     with open(f"output/{json_filename}", "w") as f:
         json.dump(data, f, indent=2, default=str)
-    print(f"\n✅ JSON saved → output/{json_filename}")
+    print(f"\n JSON saved → output/{json_filename}")
 
     # 2. Handle CSV logic
     if not data:
-        print("⚠️ No data collected; skipping CSV generation.")
+        print("⚠No data collected; skipping CSV generation.")
         return
 
     # Extract all unique keys for headers
@@ -32,4 +32,4 @@ def write_output(data, json_filename="output.json", csv_filename="output.csv"):
         writer.writeheader()
         writer.writerows(data)
 
-    print(f"✅ CSV saved  → output/{csv_filename}")
+    print(f"CSV saved  → output/{csv_filename}")

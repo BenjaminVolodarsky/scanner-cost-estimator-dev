@@ -173,12 +173,12 @@ def main():
 
     # Tracking metrics
     total_accounts = len(scan_list)
-    success_count = 0
+    full_success_count = 0
+    partial_count = 0
 
     # Execution Loop
     for acc in scan_list:
-        print("")  # Line break between accounts for visibility
-
+        print("")
         try:
             sts = boto3.client("sts")
             curr_id = sts.get_caller_identity()["Account"]
@@ -186,16 +186,22 @@ def main():
 
             # Execute Scan
             results = scan_account(acc, is_node)
-
             all_results.extend(results)
-            success_count += 1
+
+            # Check if this account had warnings (You'd need scan_account to return a status flag)
+            # For now, simplest proxy is checking if result count is 0 but account exists
+            if len(results) == 0:
+                partial_count += 1
+            else:
+                full_success_count += 1
+
         except Exception as e:
             log_warn(f"Failed to scan {acc['name']}: {str(e)}", acc['id'])
 
-    # Final Summary
-    print("")  # Final line break
-    log_info(f"Scanned {success_count}/{total_accounts} accounts successfully.", "SYSTEM")
-    write_output(all_results)
+    print("")
+    log_info(
+        f"Summary: {full_success_count} full scans, {partial_count} partial/empty scans out of {total_accounts} total.",
+        "SYSTEM")
 
 
 if __name__ == "__main__":
