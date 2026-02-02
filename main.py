@@ -95,7 +95,7 @@ def scan_region_logic(session, region, account_id):
     return region_results, list(region_errors)
 
 
-def scan_account(account_info, role_name, is_runner_node=False):
+def scan_account(account_info, role_name, regions_filter=None, is_runner_node=False):
     account_id = account_info["id"]
     name = account_info["name"]
     suffix = " [Runner Account]" if is_runner_node else ""
@@ -123,9 +123,20 @@ def scan_account(account_info, role_name, is_runner_node=False):
         pass
 
     # Regional Scans
-    account_regions = list_regions(session)
+    available_regions = list_regions(session)
+
+    # Apply Filter if provided
+    if regions_filter:
+        # Only scan regions that are BOTH requested by user AND available in the account
+        target_regions = [r for r in available_regions if r in regions_filter]
+        if len(target_regions) < len(regions_filter):
+            skipped = set(regions_filter) - set(target_regions)
+            log_info(f"Skipping requested regions not enabled in this account: {', '.join(skipped)}", account_id)
+    else:
+        target_regions = available_regions
+
     with ThreadPoolExecutor(max_workers=5) as executor:
-        futures = [executor.submit(scan_region_logic, session, r, account_id) for r in account_regions]
+        futures = [executor.submit(scan_region_logic, session, r, account_id) for r in target_regions]
         for f in as_completed(futures):
             r_data, r_errors = f.result()
             if r_data:
@@ -147,7 +158,15 @@ def main():
                         help="The IAM Role name to assume in member accounts.")
     parser.add_argument("--accounts", type=str,
                         help="Comma-separated list of account IDs to scan (bypasses auto-discovery).")
+    parser.add_argument("--regions", type=str,
+                        help="Comma-separated list of regions to scan (e.g., us-east-1,eu-central-1).")
     args = parser.parse_args()
+
+    # Parse Regions Filter
+    regions_filter = None
+    if args.regions:
+        regions_filter = [r.strip() for r in args.regions.split(",") if r.strip()]
+        log_info(f"Region filter enabled. Restricting scan to: {', '.join(regions_filter)}", "SYSTEM")
 
     # Get Runner Identity
     sts = boto3.client("sts")
@@ -181,7 +200,8 @@ def main():
         print("")
         try:
             is_runner = (acc["id"] == runner_id)
-            results = scan_account(acc, args.role, is_runner)
+            # Pass regions_filter to scan_account
+            results = scan_account(acc, args.role, regions_filter, is_runner)
             all_results.extend(results)
 
             if len(results) == 0:
