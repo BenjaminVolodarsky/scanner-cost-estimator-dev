@@ -32,4 +32,4 @@ def write_output(data, json_filename="output.json", csv_filename="output.csv"):
         writer.writeheader()
         writer.writerows(data)
 
-    print(f"CSV saved  → output/{csv_filename}")
+    print(f"\n CSV saved  → output/{csv_filename}")
