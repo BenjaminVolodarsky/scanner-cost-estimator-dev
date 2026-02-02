@@ -79,6 +79,7 @@ def scan_account(account_info):
                 # Unpack the result (data, gaps)
                 region_data, region_gaps = f.result()
                 account_results += region_data
+                account_results += f.result()
                 permission_gaps.update(region_gaps)
 
         if permission_gaps:
