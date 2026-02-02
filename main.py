@@ -40,7 +40,7 @@ def log_warn(msg, account_id="SYSTEM"):
 def get_accounts():
     """
     Fetches active member accounts from the organization.
-    Returns None if the caller lacks permissions (i.e., is a standard member).
+    Returns None if the caller lacks permissions.
     """
     try:
         org = boto3.client("organizations")
@@ -68,7 +68,8 @@ def get_assumed_session(account_id, role_name):
             aws_secret_access_key=creds["SecretAccessKey"],
             aws_session_token=creds["SessionToken"]
         )
-    except Exception:
+    except Exception as e:
+        log_warn(f"AssumeRole failed for {role_arn}: {str(e)}", account_id)
         return None
 
 
@@ -144,23 +145,32 @@ def main():
     parser = argparse.ArgumentParser(description="Cloud Scanner & Cost Estimator")
     parser.add_argument("--role", type=str, default="OrganizationAccountAccessRole",
                         help="The IAM Role name to assume in member accounts.")
+    # NEW ARGUMENT: Manual Account List
+    parser.add_argument("--accounts", type=str,
+                        help="Comma-separated list of account IDs to scan (bypasses auto-discovery).")
     args = parser.parse_args()
-
-    # 1. Capability Detection
-    accounts = get_accounts()
-
-    scan_list = []
-    if accounts:
-        log_info(f"Organization access detected. Found {len(accounts)} active accounts.", "SYSTEM")
-        scan_list = accounts
-    else:
-        log_info("Organization access unavailable. Defaulting to single-account scan.", "SYSTEM")
-        sts = boto3.client("sts")
-        curr_id = sts.get_caller_identity()["Account"]
-        scan_list = [{"id": curr_id, "name": "Local-Account"}]
 
     sts = boto3.client("sts")
     runner_id = sts.get_caller_identity()["Account"]
+
+    scan_list = []
+
+    # MODE 1: Manual List (Highest Priority)
+    if args.accounts:
+        ids = [x.strip() for x in args.accounts.split(",") if x.strip()]
+        scan_list = [{"id": aid, "name": f"Manual-{aid}"} for aid in ids]
+        log_info(f"Manual mode enabled. Scanning {len(scan_list)} specific accounts.", "SYSTEM")
+
+    # MODE 2: Auto-Discovery
+    else:
+        accounts = get_accounts()
+        if accounts:
+            log_info(f"Organization access detected. Found {len(accounts)} active accounts.", "SYSTEM")
+            scan_list = accounts
+        else:
+            # MODE 3: Local Fallback
+            log_info("Organization access unavailable. Defaulting to single-account scan.", "SYSTEM")
+            scan_list = [{"id": runner_id, "name": "Local-Account"}]
 
     all_results = []
     total_accounts = len(scan_list)
@@ -185,7 +195,6 @@ def main():
     log_info(
         f"Summary: {full_success_count} full scans, {partial_count} partial/empty scans out of {total_accounts} total.",
         "SYSTEM")
-
     write_output(all_results)
 
 
