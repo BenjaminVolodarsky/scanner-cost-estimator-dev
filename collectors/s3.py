@@ -45,9 +45,9 @@ def collect_s3_buckets(session, account_id="unknown"):
             except:
                 pass  # Default to 0 if metrics are inaccessible
 
-            doc_num = 0
+            doc_num_val = 0  # Initialize with a default value
             try:
-                doc_num = cw.get_metric_statistics(
+                response = cw.get_metric_statistics(
                     Namespace='AWS/S3',
                     MetricName='NumberOfObjects',
                     Dimensions=[
@@ -55,16 +55,17 @@ def collect_s3_buckets(session, account_id="unknown"):
                         {'Name': 'StorageType', 'Value': 'AllStorageTypes'}
                     ],
                     Statistics=['Average'],
-                    Period=86400,  # 24 hours in seconds
+                    Period=86400,
                     StartTime=now - timedelta(days=2),
                     EndTime=now
                 )
 
-                if doc_num['Datapoints']:
-                    doc_num = doc_num['Datapoints'][0]['Average']
-
-            except:
-                pass
+                if response.get('Datapoints'):
+                    # Sort by timestamp to get the most recent point if multiple exist
+                    sorted_datapoints = sorted(response['Datapoints'], key=lambda x: x['Timestamp'], reverse=True)
+                    doc_num_val = int(sorted_datapoints[0]['Average'])
+            except Exception as e:
+                print(f"⚠️ Could not get object count for {name}: {e}")
 
             results.append({
                 "account_id": account_id,
@@ -72,7 +73,7 @@ def collect_s3_buckets(session, account_id="unknown"):
                 "bucket_name": name,
                 "region": loc,
                 "size_gb": size_gb,
-                "doc_num": doc_num
+                "doc_num": doc_num_val  # Use the validated variable
             })
     except Exception:
         return []
