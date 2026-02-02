@@ -1,11 +1,8 @@
-import warnings
-warnings.filterwarnings("ignore", category=DeprecationWarning, module="boto3")
 import logging
 import sys
 import boto3
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from utils.regions import list_regions
-from utils.spinner import start_spinner, stop_spinner
 from output.writer import write_output
 
 # Import collectors
@@ -15,40 +12,51 @@ from collectors.s3 import collect_s3_buckets
 from collectors.lambda_functions import collect_lambda_functions
 from collectors.asgConverter import collect_asg_as_ec2_equivalent
 
+# Clean, organized logging configuration
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - [%(account_id)s] %(message)s',
-    handlers=[logging.StreamHandler(sys.stdout)]
+    handlers=[
+        logging.FileHandler("scanner_debug.log"),
+        logging.StreamHandler(sys.stdout)
+    ]
 )
 logger = logging.getLogger("CloudScanner")
+
 
 def log_info(msg, account_id="SYSTEM"):
     logger.info(msg, extra={'account_id': account_id})
 
-def log_warn(msg, account_id="SYSTEM"):
-    logger.warning(msg, extra={'account_id': account_id})
+
+def log_error(msg, account_id="SYSTEM"):
+    logger.error(msg, extra={'account_id': account_id})
+
 
 def get_accounts():
-    """Always fetches all active accounts using 2026-ready state checks."""
-    org = boto3.client("organizations")
-    accounts = []
+    """Fetches all active accounts from AWS Organizations."""
     try:
+        org = boto3.client("organizations")
+        accounts = []
         paginator = org.get_paginator("list_accounts")
         for page in paginator.paginate():
             for acc in page.get("Accounts", []):
                 state = acc.get("State") or acc.get("Status")
                 if state == "ACTIVE":
                     accounts.append({"id": acc["Id"], "name": acc["Name"]})
-    except Exception as e:
-        # If listing fails, we fall back to just the local account
+        return accounts
+    except Exception:
         return None
-    return accounts
+
 
 def get_assumed_session(account_id, role_name="OrganizationAccountAccessRole"):
+    """Assumes the administrative role in a member account."""
     sts = boto3.client("sts")
     role_arn = f"arn:aws:iam::{account_id}:role/{role_name}"
     try:
-        response = sts.assume_role(RoleArn=role_arn, RoleSessionName="CloudScannerEstimator")
+        response = sts.assume_role(
+            RoleArn=role_arn,
+            RoleSessionName="CloudScannerEstimator"
+        )
         creds = response["Credentials"]
         return boto3.Session(
             aws_access_key_id=creds["AccessKeyId"],
@@ -59,72 +67,87 @@ def get_assumed_session(account_id, role_name="OrganizationAccountAccessRole"):
         return None
 
 
+def scan_region_logic(session, region, account_id):
+    """Executes all regional collectors and returns a single combined list."""
+    region_results = []
+
+    # Each collector is called with the current session and account ID
+    region_results.extend(collect_ec2_instances(session, region, account_id))
+    region_results.extend(collect_asg_as_ec2_equivalent(session, region, account_id))
+    region_results.extend(collect_ebs_volumes(session, region, account_id))
+    region_results.extend(collect_lambda_functions(session, region, account_id))
+
+    return region_results
+
+
 def scan_account(account_info):
+    """Handles session establishment and data aggregation for a single account."""
     account_id = account_info["id"]
     account_name = account_info.get("name", "Unknown")
-    log_info(f"Scanning account: {account_name} ({account_id})", account_id)
+
+    log_info(f"Starting scan for account: {account_name} ({account_id})", account_id)
 
     try:
-        session = get_session_for_account(account_id)  # Assume your session logic is here
-        if not session: return []
+        sts_client = boto3.client("sts")
+        current_account_id = sts_client.get_caller_identity()["Account"]
 
+        # 1. Establish Session
+        if account_id == current_account_id:
+            session = boto3.Session()
+        else:
+            session = get_assumed_session(account_id)
+
+        if not session:
+            log_error("Failed to establish session. Check IAM trust policy.", account_id)
+            return []
+
+        # 2. Identify Enabled Regions
         account_regions = list_regions(session)
         account_results = []
-        permission_gaps = set()
 
+        # 3. Global Scans (S3)
+        account_results.extend(collect_s3_buckets(session, account_id))
+
+        # 4. Regional Scans via Thread Pool
         with ThreadPoolExecutor(max_workers=5) as executor:
-            # IMPORTANT: Pass account_id here
-            futures = [executor.submit(scan_region_logic, session, r, account_id) for r in account_regions]
+            futures = [
+                executor.submit(scan_region_logic, session, r, account_id)
+                for r in account_regions
+            ]
             for f in as_completed(futures):
-                # Unpack the result (data, gaps)
-                region_data, region_gaps = f.result()
-                account_results += region_data
-                account_results += f.result()
-                permission_gaps.update(region_gaps)
+                # Retrieve and aggregate the data from each thread
+                result_data = f.result()
+                if result_data:
+                    account_results.extend(result_data)
 
-        if permission_gaps:
-            log_warn(f"Missing permissions: {', '.join(sorted(permission_gaps))}", account_id)
-
+        log_info(f"Scan complete. Found {len(account_results)} resources.", account_id)
         return account_results
-    except Exception:
+
+    except Exception as e:
+        log_error(f"Unexpected account error: {str(e)}", account_id)
         return []
 
 
-def scan_region_logic(session, region, account_id):
-    region_results = []
-    gaps = []
-
-    # Each collector now handles AccessDenied gracefully and reports it back
-    res_ec2, gap_ec2 = collect_ec2_instances(session, region, account_id)
-    region_results += res_ec2
-    if gap_ec2: gaps.append(gap_ec2)
-
-    res_ebs, gap_ebs = collect_ebs_volumes(session, region, account_id)
-    region_results += res_ebs
-    if gap_ebs: gaps.append(gap_ebs)
-
-    res_lam, gap_lam = collect_lambda_functions(session, region, account_id)
-    region_results += res_lam
-    if gap_lam: gaps.append(gap_lam)
-
-    return region_results, gaps
-
-
 def main():
+    """Main entry point for the cross-account scanner."""
     all_results = []
-    start_spinner()
 
+    # 1. Discovery
     accounts = get_accounts()
+
+    # 2. Execution
     if accounts:
         for acc in accounts:
-            # regions is no longer passed as an argument
-            all_results += scan_account(acc)
+            all_results.extend(scan_account(acc))
     else:
-        curr_id = boto3.client("sts").get_caller_identity()["Account"]
-        all_results += scan_account({"id": curr_id, "name": "Local-Account"})
+        # Fallback if Organizations access is restricted
+        sts = boto3.client("sts")
+        curr_id = sts.get_caller_identity()["Account"]
+        all_results.extend(scan_account({"id": curr_id, "name": "Local-Account"}))
 
-    stop_spinner()
+    # 3. Output Generation
     write_output(all_results)
+
 
 if __name__ == "__main__":
     main()
