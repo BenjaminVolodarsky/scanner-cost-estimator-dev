@@ -6,7 +6,6 @@ def collect_s3_buckets(session, account_id="unknown"):
     results = []
     error = None
 
-    # Cache CloudWatch clients to avoid re-creating them for every bucket
     cw_clients = {}
 
     try:
@@ -16,26 +15,22 @@ def collect_s3_buckets(session, account_id="unknown"):
         for bucket in buckets:
             name = bucket["Name"]
 
-            # 1. Determine the correct region for this bucket
             try:
                 loc_resp = s3.get_bucket_location(Bucket=name)
                 region = loc_resp['LocationConstraint'] or 'us-east-1'
-                # Handle AWS quirk: 'EU' implies 'eu-west-1'
                 if region == 'EU':
                     region = 'eu-west-1'
             except:
                 region = 'us-east-1'
 
-            # 2. Get or create the regional CloudWatch client
             if region not in cw_clients:
                 try:
                     cw_clients[region] = session.client("cloudwatch", region_name=region)
                 except Exception:
-                    cw_clients[region] = None  # Mark as failed to avoid retrying
+                    cw_clients[region] = None
 
             cw = cw_clients.get(region)
 
-            # 3. Fetch Metrics (Size)
             size_gb = 0
             if cw:
                 try:
@@ -73,7 +68,6 @@ def collect_s3_buckets(session, account_id="unknown"):
                         EndTime=now
                     )
                     if response.get('Datapoints'):
-                        # Get the most recent datapoint
                         latest = sorted(response['Datapoints'], key=lambda x: x['Timestamp'])[-1]
                         doc_num_val = int(latest['Average'])
                 except:
@@ -84,8 +78,8 @@ def collect_s3_buckets(session, account_id="unknown"):
                 "resource": "s3_bucket",
                 "bucket_name": name,
                 "region": region,
-                "size_gb": size_gb,
-                "doc_num": doc_num_val
+                "bucket_size_gb": size_gb,
+                "bucket_doc_num": doc_num_val
             })
 
     except Exception as e:

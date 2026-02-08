@@ -10,8 +10,8 @@ def collect_lambda_functions(session, region, account_id):
                     "account_id": account_id,
                     "resource": "lambda",
                     "region": region,
-                    "name": func.get('FunctionName'),
-                    "memory_mb": func.get('MemorySize')
+                    "function_name": func.get('FunctionName'),
+                    "function_memory_mb": func.get('MemorySize')
                 })
     except Exception as e:
         if "AccessDenied" in str(e):

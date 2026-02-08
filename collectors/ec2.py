@@ -19,8 +19,8 @@ def collect_ec2_instances(session, region, account_id):
                         "account_id": account_id,
                         "resource": "ec2",
                         "region": region,
-                        "id": instance['InstanceId'],
-                        "type": instance['InstanceType'],
+                        "instance_id": instance['InstanceId'],
+                        "instance_type": instance['InstanceType'],
                     })
     except Exception as e:
         if "AccessDenied" in str(e) or "UnauthorizedOperation" in str(e):

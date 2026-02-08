@@ -1,9 +1,6 @@
 import warnings
-
-# Filter specific Boto3/Python 3.9 deprecation warnings
 warnings.filterwarnings("ignore", message=".*Boto3 will no longer support Python 3.9.*")
 warnings.filterwarnings("ignore", category=DeprecationWarning)
-
 import logging
 import sys
 import argparse
@@ -12,14 +9,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from utils.regions import list_regions
 from output.writer import write_output
 
-# Import collectors
 from collectors.ec2 import collect_ec2_instances
 from collectors.ebs import collect_ebs_volumes
 from collectors.s3 import collect_s3_buckets
 from collectors.lambda_functions import collect_lambda_functions
 from collectors.asgConverter import collect_asg_as_ec2_equivalent
 
-# Organized Logging Configuration
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - [%(account_id)s] %(message)s',
@@ -102,7 +97,6 @@ def scan_account(account_info, role_name, regions_filter=None, is_runner_node=Fa
 
     log_info(f"Starting scan for account: {name} ({account_id}){suffix}", account_id)
 
-    # Session Setup
     if is_runner_node:
         session = boto3.Session()
     else:
@@ -114,7 +108,6 @@ def scan_account(account_info, role_name, regions_filter=None, is_runner_node=Fa
     account_results = []
     account_errors = set()
 
-    # S3 Scan (Global)
     try:
         s3_data, s3_err = collect_s3_buckets(session, account_id)
         if s3_data: account_results.extend(s3_data)
