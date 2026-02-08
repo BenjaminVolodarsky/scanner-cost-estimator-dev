@@ -10,9 +10,9 @@ def collect_ebs_volumes(session, region, account_id):
                     "account_id": account_id,
                     "resource": "ebs",
                     "region": region,
-                    "id": vol['VolumeId'],
-                    "size_gb": vol['Size'],
-                    "type": vol['VolumeType']
+                    "ebs_id": vol['VolumeId'],
+                    "ebs_size_gb": vol['Size'],
+                    "ebs_type": vol['VolumeType']
                 })
     except Exception as e:
         if "AccessDenied" in str(e) or "UnauthorizedOperation" in str(e):
