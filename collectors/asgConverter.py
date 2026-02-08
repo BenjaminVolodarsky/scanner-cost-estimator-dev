@@ -13,8 +13,8 @@ def collect_asg_as_ec2_equivalent(session, region, account_id):
                     "account_id": account_id,
                     "resource": "asg_ec2_equivalent",
                     "region": region,
-                    "name": asg['AutoScalingGroupName'],
-                    "instance_count": len(asg['Instances'])
+                    "asg_name": asg['AutoScalingGroupName'],
+                    "asg_instance_count": len(asg['Instances'])
                 })
     except Exception as e:
         if "AccessDenied" in str(e):
