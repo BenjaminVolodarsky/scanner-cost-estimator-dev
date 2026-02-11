@@ -1,5 +1,7 @@
+from utils.config_helper import get_client
+
 def collect_lambda_functions(session, region, account_id):
-    client = session.client("lambda", region_name=region)
+    client = get_client(session, "lambda", region_name=region)
     results = []
     error = None
     try:

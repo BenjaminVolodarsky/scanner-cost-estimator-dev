@@ -115,12 +115,9 @@ def scan_account(account_info, role_name, regions_filter=None, is_runner_node=Fa
     except Exception:
         pass
 
-    # Regional Scans
     available_regions = list_regions(session)
 
-    # Apply Filter if provided
     if regions_filter:
-        # Only scan regions that are BOTH requested by user AND available in the account
         target_regions = [r for r in available_regions if r in regions_filter]
         if len(target_regions) < len(regions_filter):
             skipped = set(regions_filter) - set(target_regions)
@@ -155,13 +152,11 @@ def main():
                         help="Comma-separated list of regions to scan (e.g., us-east-1,eu-central-1).")
     args = parser.parse_args()
 
-    # Parse Regions Filter
     regions_filter = None
     if args.regions:
         regions_filter = [r.strip() for r in args.regions.split(",") if r.strip()]
         log_info(f"Region filter enabled. Restricting scan to: {', '.join(regions_filter)}", "SYSTEM")
 
-    # Get Runner Identity
     sts = boto3.client("sts")
     runner_id = sts.get_caller_identity()["Account"]
 
@@ -193,7 +188,6 @@ def main():
         print("")
         try:
             is_runner = (acc["id"] == runner_id)
-            # Pass regions_filter to scan_account
             results = scan_account(acc, args.role, regions_filter, is_runner)
             all_results.extend(results)
 

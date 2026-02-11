@@ -1,5 +1,7 @@
+from utils.config_helper import get_client
+
 def collect_asg_as_ec2_equivalent(session, region, account_id):
-    client = session.client("autoscaling", region_name=region)
+    client = get_client(session, "autoscaling", region_name=region)
     results = []
     error = None
     try:
@@ -14,7 +16,8 @@ def collect_asg_as_ec2_equivalent(session, region, account_id):
                     "resource": "asg_ec2_equivalent",
                     "region": region,
                     "asg_name": asg['AutoScalingGroupName'],
-                    "asg_instance_count": len(asg['Instances'])
+                    # len(Instances) counts actual running nodes
+                    "asg_instance_count": len(asg.get('Instances', []))
                 })
     except Exception as e:
         if "AccessDenied" in str(e):

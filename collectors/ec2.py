@@ -1,5 +1,8 @@
+from utils.config_helper import get_client
+
+
 def collect_ec2_instances(session, region, account_id):
-    client = session.client("ec2", region_name=region)
+    client = get_client(session, "ec2", region_name=region)
     results = []
     error = None
     try:
@@ -8,7 +11,7 @@ def collect_ec2_instances(session, region, account_id):
             for reservation in page['Reservations']:
                 for instance in reservation['Instances']:
                     tags = {t['Key']: t['Value'] for t in instance.get('Tags', [])}
-                    # Filter out EKS/K8s nodes to avoid double counting
+
                     if any(k in str(tags).lower() for k in ['eks', 'k8s', 'kubernetes']):
                         continue
 
@@ -23,6 +26,6 @@ def collect_ec2_instances(session, region, account_id):
                         "instance_type": instance['InstanceType'],
                     })
     except Exception as e:
-        if "AccessDenied" in str(e) or "UnauthorizedOperation" in str(e):
+        if any(err in str(e) for err in ["AccessDenied", "UnauthorizedOperation"]):
             error = "ec2:DescribeInstances"
     return results, error

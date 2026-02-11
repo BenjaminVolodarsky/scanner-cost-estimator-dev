@@ -1,5 +1,7 @@
+from utils.config_helper import get_client
+
 def collect_ebs_volumes(session, region, account_id):
-    client = session.client("ec2", region_name=region)
+    client = get_client(session, "ec2", region_name=region)
     results = []
     error = None
     try:
@@ -15,6 +17,6 @@ def collect_ebs_volumes(session, region, account_id):
                     "ebs_type": vol['VolumeType']
                 })
     except Exception as e:
-        if "AccessDenied" in str(e) or "UnauthorizedOperation" in str(e):
+        if any(err in str(e) for err in ["AccessDenied", "UnauthorizedOperation"]):
             error = "ec2:DescribeVolumes"
     return results, error
