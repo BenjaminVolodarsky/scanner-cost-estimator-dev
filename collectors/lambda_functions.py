@@ -12,7 +12,6 @@ def collect_lambda_functions(session, region, account_id):
                     "account_id": account_id,
                     "resource": "lambda",
                     "region": region,
-                    "function_name": func.get('FunctionName'),
                     "function_memory_mb": func.get('MemorySize')
                 })
     except Exception as e:

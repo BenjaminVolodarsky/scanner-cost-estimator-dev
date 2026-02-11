@@ -3,37 +3,33 @@ from utils.config_helper import get_client
 
 
 def collect_s3_buckets(session, account_id="unknown"):
-    """
-    Collects S3 bucket metadata and metrics using high-performance batching.
-    """
     s3 = get_client(session, "s3")
     results = []
     error = None
-
-    # Bucket grouping to batch CloudWatch calls by region
     buckets_by_region = {}
 
     try:
-        # 1. Get list of all buckets in the account
-        all_buckets = s3.list_buckets().get("Buckets", [])
+        # Step 1: Create a paginator for list_buckets
+        paginator = s3.get_paginator('list_buckets')
+
         now = datetime.utcnow()
         start_time = now - timedelta(days=2)
 
-        # 2. Discover regions for all buckets
-        for b in all_buckets:
-            name = b["Name"]
-            try:
-                # head_bucket is faster and more reliable than get_bucket_location
-                region = s3.head_bucket(Bucket=name).get('ResponseMetadata', {}).get('HTTPHeaders', {}).get(
-                    'x-amz-bucket-region', 'us-east-1')
-            except:
-                region = 'us-east-1'
+        # Step 2: Iterate through every page of buckets
+        # This handles accounts with > 10,000 buckets automatically
+        for page in paginator.paginate():
+            for b in page.get("Buckets", []):
+                name = b["Name"]
+                try:
+                    region = s3.head_bucket(Bucket=name).get('ResponseMetadata', {}).get('HTTPHeaders', {}).get(
+                        'x-amz-bucket-region', 'us-east-1')
+                except:
+                    region = 'us-east-1'
 
-            if region not in buckets_by_region:
-                buckets_by_region[region] = []
-            buckets_by_region[region].append(name)
+                if region not in buckets_by_region:
+                    buckets_by_region[region] = []
+                buckets_by_region[region].append(name)
 
-        # 3. Batch fetch metrics per region using GetMetricData
         for region, bucket_names in buckets_by_region.items():
             cw = get_client(session, "cloudwatch", region_name=region)
 
@@ -81,14 +77,12 @@ def collect_s3_buckets(session, account_id="unknown"):
                     })
 
                 try:
-                    # Single network call for up to 250 buckets!
                     response = cw.get_metric_data(
                         MetricDataQueries=queries,
                         StartTime=start_time,
                         EndTime=now
                     )
 
-                    # Organize responses into a map for easy lookup
                     metrics_map = {res['Label']: (res['Values'][0] if res['Values'] else 0) for res in
                                    response['MetricDataResults']}
 
@@ -99,18 +93,15 @@ def collect_s3_buckets(session, account_id="unknown"):
                         results.append({
                             "account_id": account_id,
                             "resource": "s3_bucket",
-                            "bucket_name": b_name,
                             "region": region,
                             "bucket_size_gb": round(size_val / (1024 ** 3), 2),
                             "bucket_doc_num": int(count_val)
                         })
                 except Exception:
-                    # Fallback: if CloudWatch fails for this batch, record buckets with 0
                     for b_name in chunk:
                         results.append({
                             "account_id": account_id,
                             "resource": "s3_bucket",
-                            "bucket_name": b_name,
                             "region": region,
                             "bucket_size_gb": 0,
                             "bucket_doc_num": 0

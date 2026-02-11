@@ -3,7 +3,6 @@ import boto3
 
 def list_regions(session=None):
     client = session.client('ec2', region_name='us-east-1') if session else boto3.client('ec2')
-
     try:
         response = client.describe_regions(
             AllRegions=False,

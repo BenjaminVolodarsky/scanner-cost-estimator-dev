@@ -12,7 +12,7 @@ def collect_ebs_volumes(session, region, account_id):
                     "account_id": account_id,
                     "resource": "ebs",
                     "region": region,
-                    "ebs_id": vol['VolumeId'],
+                    "ebs_state": vol['State'],
                     "ebs_size_gb": vol['Size'],
                     "ebs_type": vol['VolumeType']
                 })
