@@ -37,20 +37,16 @@ More about required roles and policies can be found in the [Permissions](#least-
 
 **Required permissions for the cross-account role:**
 
-| Service | Action                      | Purpose |
-| :--- |:----------------------------| :--- |
-| **EC2** | `DescribeInstances`         | Fetches [EC2 instances specs](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstances.html) |
-| **EC2** | `DescribeVolumes`           | Fetches [EBS volumes specs](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeVolumes.html) |
-| **EC2** | `DescribeRegions`           | Fetches [EC2 regions specs](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeRegions.html) |
-| **Auto Scaling** | `DescribeAutoScalingGroups` | Fetches [Auto Scaling groups specs](https://aws.amazon.com/ec2/) |
-| **Lambda** | `ListFunctions`             | Fetches [Lambda functions specs](https://docs.aws.amazon.com/lambda/latest/api/API_ListFunctions.html) |
-| **S3** | `ListAllMyBuckets`          | Fetches [S3 buckets specs](https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListBuckets.html) |
-| **S3** | `GetBucketLocation`*        | Fetches [S3 bucket locations specs](https://docs.aws.amazon.com/AmazonS3/latest/API/API_HeadBucket.html) |
-| **CloudWatch** | `GetMetricData`             | Fetches [CloudWatch metrics specs](https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/API_GetMetricData.html) |
-
-\* We use `HeadBucket` command data to retrieve additional bucket data for S3.
-
-
+| Service | Permission                  | Action                                                                                                                                                                                            |
+| :--- |:----------------------------|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **EC2** | `DescribeInstances`         | [DescribeInstances](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeInstances.html)                                                                                            |
+| **EC2** | `DescribeVolumes`           | [DescribeVolumes](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeVolumes.html)                                                                                                |
+| **EC2** | `DescribeRegions`           | [DescribeRegions](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DescribeRegions.html)                                                                                                |
+| **Auto Scaling** | `DescribeAutoScalingGroups` | [DescribeAutoScalingGroups](https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribeAutoScalingGroups.html)                                                                          |
+| **Lambda** | `ListFunctions`             | [ListFunctions](https://docs.aws.amazon.com/lambda/latest/api/API_ListFunctions.html)                                                                                                             |
+| **S3** | `ListAllMyBuckets`          | [ListBuckets](https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListBuckets.html)                                                                                                               |
+| **S3** | `GetBucketLocation`         | [HeadBucket](https://docs.aws.amazon.com/AmazonS3/latest/API/API_HeadBucket.html)                                                                                                                 |
+| **CloudWatch** | `GetMetricData`             | [GetMetricData](https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/API_GetMetricData.html)                                                                                          |
 
 
 Notice: in order to perform a full multi-account scan, the runner account (management account or a member account that is a delegated administrator) must have the following permissions:
