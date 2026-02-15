@@ -24,7 +24,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("CloudScanner")
 logger.setLevel(logging.INFO)
-
+logger.info("CloudScanner started")
 
 def log_info(msg, account_id="SYSTEM"):
     logger.info(msg, extra={'account_id': account_id})
