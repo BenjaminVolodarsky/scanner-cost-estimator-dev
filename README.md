@@ -51,7 +51,6 @@ By default, it looks for `OrganizationAccountAccessRole`, but this can be custom
 | **S3** | `ListBucket`                | <a href="https://docs.aws.amazon.com/AmazonS3/latest/API/API_HeadBucket.html" target="_blank">HeadBucket</a>                                                                                                                |
 | **CloudWatch** | `GetMetricData`             | <a href="https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/API_GetMetricData.html" target="_blank">GetMetricData</a>                                                                                       |
 
-
 To perform a full multi-account scan, the runner account (management account or a member account that is a delegated administrator) must have the following permissions:
 - organizations:ListAccounts [ListAccounts](https://docs.aws.amazon.com/organizations/latest/APIReference/API_ListAccounts.html)
 - sts:AssumeRole [AssumeRole](https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html)
